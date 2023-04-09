@@ -521,13 +521,12 @@ static void MX_GPIO_Init(void)
 void UserTask1(void const * argument)
 {
     uint8_t CardStr[20] = {0};
-    uint32_t Cnt = 0;
     uint8_t Status = 0;
     while (1)
     {
         vTaskDelay(10);
         Key_Scan();
-        for(Cnt=0;Cnt<20;Cnt++)CardStr[Cnt] = 0u;
+        memset(CardStr,0u,20u);
         Status = MFRC522_Request(PICC_REQIDL, CardStr);
         if(MI_OK == Status)
         {
