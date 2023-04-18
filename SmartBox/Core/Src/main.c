@@ -518,21 +518,59 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-void UserTask1(void const * argument)
+
+const uint8_t Mx1[6][4]=
 {
-    uint8_t CardStr[20] = {0};
+    {0x12,0x45,0xF2,0xA8},
+    {0xB2,0x6C,0x39,0x83},
+    {0x55,0xE5,0xDA,0x18},
+    {0x1F,0x09,0xCA,0x75},
+    {0x99,0xA2,0x50,0xEC},
+    {0x2C,0x88,0x7F,0x3D}
+};
+
+void UserTask1(void const *argument)
+{
+    uint8_t CardStr[16] = { 0 };
+    uint8_t UID[5];
+    uint8_t SectorKey[7];
     uint8_t Status = 0;
     while (1)
     {
         vTaskDelay(10);
         Key_Scan();
-        memset(CardStr,0u,20u);
+        memset(CardStr, 0u, 16u);
         Status = MFRC522_Request(PICC_REQIDL, CardStr);
-        if(MI_OK == Status)
+        if( MI_OK == Status )
         {
+            Status = MFRC522_Anticoll(CardStr);
+            if( MI_OK == Status )
+            {
+                UID[0] = CardStr[0];
+                UID[1] = CardStr[1];
+                UID[2] = CardStr[2];
+                UID[3] = CardStr[3];
+                UID[4] = CardStr[4];
+
+                Status = MFRC522_SelectTag(CardStr);
+                if(Status > 0)
+                {
+                    SectorKey[0] = ((Mx1[0][0])^(UID[0])) + ((Mx1[0][1])^(UID[1])) + ((Mx1[0][2])^(UID[2])) + ((Mx1[0][3])^(UID[3]));// 0x11; //KeyA[0]
+                    SectorKey[1] = ((Mx1[1][0])^(UID[0])) + ((Mx1[1][1])^(UID[1])) + ((Mx1[1][2])^(UID[2])) + ((Mx1[1][3])^(UID[3]));// 0x11; //KeyA[0]
+                    SectorKey[2] = ((Mx1[2][0])^(UID[0])) + ((Mx1[2][1])^(UID[1])) + ((Mx1[2][2])^(UID[2])) + ((Mx1[2][3])^(UID[3]));// 0x11; //KeyA[0]
+                    SectorKey[3] = ((Mx1[3][0])^(UID[0])) + ((Mx1[3][1])^(UID[1])) + ((Mx1[3][2])^(UID[2])) + ((Mx1[3][3])^(UID[3]));// 0x11; //KeyA[0]
+                    SectorKey[4] = ((Mx1[4][0])^(UID[0])) + ((Mx1[4][1])^(UID[1])) + ((Mx1[4][2])^(UID[2])) + ((Mx1[4][3])^(UID[3]));// 0x11; //KeyA[0]
+                    SectorKey[5] = ((Mx1[5][0])^(UID[0])) + ((Mx1[5][1])^(UID[1])) + ((Mx1[5][2])^(UID[2])) + ((Mx1[5][3])^(UID[3]));// 0x11; //KeyA[0]
+                    vTaskDelay(2);
+                    Status = MFRC522_Auth(0x60, 3, SectorKey, CardStr);
+                    if (Status == MI_OK)
+                    {
 #if DEBUG == 1
-            printf("Done\n");
+                        printf("Done\n");
 #endif
+                    }
+                }
+            }
         }
     }
 }

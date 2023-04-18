@@ -48,6 +48,18 @@ extern "C" {
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
 
+#pragma push(pack,1)
+typedef struct
+{
+    uint32_t CardUniqId;
+    uint8_t CustomerName[20];
+    uint16_t CustomerId;
+    uint16_t Balance:16;
+    uint16_t RegionCode;
+    uint8_t Number[3][10]; /*120 Bits */
+}CustDetails_t;
+#pragma pop(pack)
+
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
