@@ -24,11 +24,19 @@
 /* USER CODE BEGIN Includes */
 #if (DEBUG == 1)
     #include <stdio.h>
+
+#ifdef __GNUC__
+/* With GCC/RAISONANCE, small printf (option LD Linker->Libraries->Small printf
+   set to 'Yes') calls __io_putchar() */
+#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
+#else
+#define PUTCHAR_PROTOTYPE int fputc(int ch, FILE *f)
+#endif /* __GNUC__ */
 #endif
 #include "ili9341.h"
 #include "mfrc522.h"
 #include "Keypad4x3.h"
-#include "gsm.h"
+
 
 /* USER CODE END Includes */
 
@@ -55,6 +63,8 @@ RTC_HandleTypeDef hrtc;
 SPI_HandleTypeDef hspi1;
 SPI_HandleTypeDef hspi2;
 
+UART_HandleTypeDef huart1;
+
 osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
 
@@ -68,16 +78,22 @@ static void MX_SPI1_Init(void);
 static void MX_SPI2_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_RTC_Init(void);
+static void MX_USART1_UART_Init(void);
 void StartDefaultTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
 void UserTask1(void const * argument);
-void UserTask2(void const * argument);
 void TaskGsm(void const * argument);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+PUTCHAR_PROTOTYPE
+{
+  HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, 0xFFFF);
+
+  return ch;
+}
 
 /* USER CODE END 0 */
 
@@ -114,9 +130,11 @@ int main(void)
   MX_SPI2_Init();
   MX_USART3_UART_Init();
   MX_RTC_Init();
+  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
   ILI9341_Init();
   MFRC522_Init();
+  printf("Hello World..\n");
 
   ILI9341_FillScreen(ILI9341_BLACK);
 
@@ -350,6 +368,39 @@ static void MX_SPI2_Init(void)
 }
 
 /**
+  * @brief USART1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART1_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART1_Init 0 */
+
+  /* USER CODE END USART1_Init 0 */
+
+  /* USER CODE BEGIN USART1_Init 1 */
+
+  /* USER CODE END USART1_Init 1 */
+  huart1.Instance = USART1;
+  huart1.Init.BaudRate = 115200;
+  huart1.Init.WordLength = UART_WORDLENGTH_8B;
+  huart1.Init.StopBits = UART_STOPBITS_1;
+  huart1.Init.Parity = UART_PARITY_NONE;
+  huart1.Init.Mode = UART_MODE_TX_RX;
+  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART1_Init 2 */
+
+  /* USER CODE END USART1_Init 2 */
+
+}
+
+/**
   * @brief USART3 Initialization Function
   * @param None
   * @retval None
@@ -425,7 +476,7 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, MFRC522_CS_Pin|GSM_PWR_CTRL_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOA, MFRC522_CS_Pin|GSM_KEY_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOC, MFRC522_RST_Pin|ILI9341_DC_Pin|ILI9341_RES_Pin|KEY_SCAN3_Pin, GPIO_PIN_SET);
@@ -473,12 +524,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : GSM_PWR_CTRL_Pin */
-  GPIO_InitStruct.Pin = GSM_PWR_CTRL_Pin;
+  /*Configure GPIO pin : GSM_KEY_Pin */
+  GPIO_InitStruct.Pin = GSM_KEY_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GSM_PWR_CTRL_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GSM_KEY_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : KEY_RET4_Pin */
   GPIO_InitStruct.Pin = KEY_RET4_Pin;
@@ -518,117 +569,6 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-
-const uint8_t Mx1[6][4]=
-{
-    {0x12,0x45,0xF2,0xA8},
-    {0xB2,0x6C,0x39,0x83},
-    {0x55,0xE5,0xDA,0x18},
-    {0x1F,0x09,0xCA,0x75},
-    {0x99,0xA2,0x50,0xEC},
-    {0x2C,0x88,0x7F,0x3D}
-};
-
-void UserTask1(void const *argument)
-{
-    uint8_t CardStr[16] = { 0 };
-    uint8_t UID[5];
-    uint8_t SectorKey[7];
-    uint8_t Status = 0;
-    while (1)
-    {
-        vTaskDelay(10);
-        Key_Scan();
-        memset(CardStr, 0u, 16u);
-        Status = MFRC522_Request(PICC_REQIDL, CardStr);
-        if( MI_OK == Status )
-        {
-            Status = MFRC522_Anticoll(CardStr);
-            if( MI_OK == Status )
-            {
-                UID[0] = CardStr[0];
-                UID[1] = CardStr[1];
-                UID[2] = CardStr[2];
-                UID[3] = CardStr[3];
-                UID[4] = CardStr[4];
-
-                Status = MFRC522_SelectTag(CardStr);
-                if(Status > 0)
-                {
-                    SectorKey[0] = ((Mx1[0][0])^(UID[0])) + ((Mx1[0][1])^(UID[1])) + ((Mx1[0][2])^(UID[2])) + ((Mx1[0][3])^(UID[3]));// 0x11; //KeyA[0]
-                    SectorKey[1] = ((Mx1[1][0])^(UID[0])) + ((Mx1[1][1])^(UID[1])) + ((Mx1[1][2])^(UID[2])) + ((Mx1[1][3])^(UID[3]));// 0x11; //KeyA[0]
-                    SectorKey[2] = ((Mx1[2][0])^(UID[0])) + ((Mx1[2][1])^(UID[1])) + ((Mx1[2][2])^(UID[2])) + ((Mx1[2][3])^(UID[3]));// 0x11; //KeyA[0]
-                    SectorKey[3] = ((Mx1[3][0])^(UID[0])) + ((Mx1[3][1])^(UID[1])) + ((Mx1[3][2])^(UID[2])) + ((Mx1[3][3])^(UID[3]));// 0x11; //KeyA[0]
-                    SectorKey[4] = ((Mx1[4][0])^(UID[0])) + ((Mx1[4][1])^(UID[1])) + ((Mx1[4][2])^(UID[2])) + ((Mx1[4][3])^(UID[3]));// 0x11; //KeyA[0]
-                    SectorKey[5] = ((Mx1[5][0])^(UID[0])) + ((Mx1[5][1])^(UID[1])) + ((Mx1[5][2])^(UID[2])) + ((Mx1[5][3])^(UID[3]));// 0x11; //KeyA[0]
-                    vTaskDelay(2);
-                    Status = MFRC522_Auth(0x60, 3, SectorKey, CardStr);
-                    if (Status == MI_OK)
-                    {
-#if DEBUG == 1
-                        printf("Done\n");
-#endif
-                    }
-                }
-            }
-        }
-    }
-}
-
-void UserTask2(void const * argument)
-{
-    int8_t KeyData = 0u;
-    uint8_t String[10] = {0};
-    uint8_t Str = 0;
-    while (1)
-    {
-        vTaskDelay(10);
-
-        KeyData = Key_GetData();
-        if(-1 != KeyData)
-        {
-            String[Str++]= KeyData+48;
-            String[Str] = 0;
-            Str = Str % 10;
-
-            ILI9341_WriteString(0,0,String,Font_16x26,ILI9341_WHITE,ILI9341_BLACK);
-            /* ILI9341_TestLoop(); */
-        }
-
-    }
-}
-
-
-
-void GSM_PowerRecycle(void)
-{
-    HAL_GPIO_WritePin(GSM_PWR_CTRL_GPIO_Port, GSM_PWR_CTRL_Pin, GPIO_PIN_RESET);
-    gsm_delay(1000);
-    HAL_GPIO_WritePin(GSM_PWR_CTRL_GPIO_Port, GSM_PWR_CTRL_Pin, GPIO_PIN_SET);
-}
-void TaskGsm(void const * argument)
-{
-#if (_GSM_MAIN_POWER == 1)
-    GSM_PowerRecycle();
-#endif
-    gsm_init();
-    gsm_power(true);
-#if(_GSM_SIM_DETECTOR == 1)
-    if(HAL_GPIO_ReadPin(_GSM_SIM_DET_GPIO, _GSM_SIM_DET_PIN))
-    {
-      gsm_power(false);
-      #if(_GSM_RTOS != 0)
-        vTaskSuspend(NULL);
-      #endif
-    }
-  #endif
-    while (1)
-    {
-        gsm_loop();
-    }
-}
-
-
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -644,11 +584,8 @@ void StartDefaultTask(void const * argument)
     BaseType_t Result;
 
     Result = xTaskCreate( UserTask1,"Key_RFID",100,NULL,0u,NULL);
-    Result = xTaskCreate( UserTask2,"LCD",100,NULL,0u,NULL);
     Result = xTaskCreate( TaskGsm,"GmsHandler",500,NULL,0u,NULL);
 
-
-    /* vTaskDelete(StartDefaultTask); */
     /* Infinite loop */
   for(;;)
   {

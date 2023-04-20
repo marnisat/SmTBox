@@ -191,7 +191,7 @@ bool gsm_init(void)
   gsm_printf("[GSM] init begin\r\n");
 
 #if (_GSM_KEY == 1)
-  HAL_GPIO_WritePin(_GSM_KEY_GPIO, _GSM_KEY_PIN, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GSM_KEY_GPIO_Port, GSM_KEY_Pin, GPIO_PIN_SET);
   gsm_delay(3000);
 #endif
 
@@ -532,9 +532,9 @@ bool gsm_power(bool on_off)
         else
             gsm.status.turnOff = 1;
 #if (_GSM_KEY == 1)
-        HAL_GPIO_WritePin(_GSM_KEY_GPIO, _GSM_KEY_PIN, GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(GSM_KEY_GPIO_Port, GSM_KEY_Pin, GPIO_PIN_RESET);
         gsm_delay(1500);
-        HAL_GPIO_WritePin(_GSM_KEY_GPIO, _GSM_KEY_PIN, GPIO_PIN_SET);
+        HAL_GPIO_WritePin(GSM_KEY_GPIO_Port, GSM_KEY_Pin, GPIO_PIN_SET);
         gsm_delay(3000);
 #endif
 
@@ -569,9 +569,9 @@ bool gsm_power(bool on_off)
     if( (on_off == false) && (state == 1) )
     {
 #if (_GSM_KEY == 1)
-        HAL_GPIO_WritePin(_GSM_KEY_GPIO, _GSM_KEY_PIN, GPIO_PIN_RESET);
+        HAL_GPIO_WritePin(GSM_KEY_GPIO_Port, GSM_KEY_Pin, GPIO_PIN_RESET);
         gsm_delay(1500);
-        HAL_GPIO_WritePin(_GSM_KEY_GPIO, _GSM_KEY_PIN, GPIO_PIN_SET);
+        HAL_GPIO_WritePin(GSM_KEY_GPIO_Port, GSM_KEY_Pin, GPIO_PIN_SET);
         gsm_delay(3000);
 #endif
         gsm.status.power = 0;

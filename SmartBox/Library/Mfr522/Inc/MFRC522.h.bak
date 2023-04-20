@@ -46,12 +46,10 @@ extern SPI_HandleTypeDef MFRC522_SPI_PORT;
 # define PICC_HALT            0x50               // Sleep
 
 
-/* And MF522 The error code is returned when communication */
-//#define MI_OK                 0
-//#define MI_NOTAGERR           1
-//#define MI_ERR                2
-
-typedef enum{MI_OK = 0,MI_NOTAGERR,MI_ERR}MIResult_t;
+//And MF522 The error code is returned when communication
+#define MI_OK                 0
+#define MI_NOTAGERR           1
+#define MI_ERR                2
 
 
 //------------------MFRC522 Register---------------
@@ -134,7 +132,7 @@ void AntennaOff();
 void MFRC522_Reset();
 void MFRC522_Init();
 uint8_t MFRC522_Request(uint8_t, uint8_t*);
-MIResult_t MFRC522_ToCard(uint8_t, uint8_t*, uint8_t, uint8_t*, uint32_t*);
+uint8_t MFRC522_ToCard(uint8_t, uint8_t*, uint8_t, uint8_t*, uint32_t*);
 uint8_t MFRC522_Anticoll(uint8_t*);
 void CalulateCRC(uint8_t*, uint8_t, uint8_t*);
 uint8_t MFRC522_SelectTag(uint8_t*);

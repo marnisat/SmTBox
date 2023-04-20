@@ -1,0 +1,4 @@
+Customer Infromation Stored in card
+1. Phone numbers 30 Bytes (BCD)
+2. Balance	(Max Amount 1000/-) 10 Bits
+3. Acceptence Id (4 Bytes)

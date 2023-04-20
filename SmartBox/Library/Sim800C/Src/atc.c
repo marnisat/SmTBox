@@ -204,7 +204,7 @@ int8_t atc_command(atc_t *atc, const char *command, uint32_t timeout_ms, char *a
         if( atc_available(atc) )
         {
             atc_printf("[%s] %s", atc->name, (char* )atc->rxBuffer);
-            ILI9341_WriteString(0,0,atc->rxBuffer,Font_16x26,ILI9341_WHITE,ILI9341_BLACK);
+            /* ILI9341_WriteString(0,0,atc->rxBuffer,Font_16x26,ILI9341_WHITE,ILI9341_BLACK); */
             atc_search(atc);
             char *found = atc_searchAnswer(atc, items, &foundIndex);
             if( found != NULL && answer != NULL )

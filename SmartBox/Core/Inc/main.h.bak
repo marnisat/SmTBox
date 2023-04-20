@@ -94,8 +94,8 @@ void Error_Handler(void);
 #define ILI9341_DC_GPIO_Port GPIOC
 #define ILI9341_RES_Pin GPIO_PIN_8
 #define ILI9341_RES_GPIO_Port GPIOC
-#define GSM_KEY_Pin GPIO_PIN_8
-#define GSM_KEY_GPIO_Port GPIOA
+#define GSM_PWR_CTRL_Pin GPIO_PIN_8
+#define GSM_PWR_CTRL_GPIO_Port GPIOA
 #define KEY_RET4_Pin GPIO_PIN_15
 #define KEY_RET4_GPIO_Port GPIOA
 #define KEY_RET3_Pin GPIO_PIN_10

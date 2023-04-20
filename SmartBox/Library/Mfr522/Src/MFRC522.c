@@ -7,6 +7,9 @@
 #if (DEBUG==1)
     #include <stdio.h>
 #endif
+
+
+
 //------------------------------------------------------
 /*
  * Function Nameï¼šWrite_MFRC5200
@@ -194,22 +197,22 @@ void MFRC522_Init(void)
  *    0x4403 = Mifare_DESFire
  * Return value: the successful return MI_OK
  */
-uint8_t MFRC522_Request(uint8_t reqMode, uint8_t *TagType)
+MIResult_t MFRC522_Request(uint8_t reqMode, uint8_t *TagType)
 {
-    uint8_t status;
+    MIResult_t Result = MI_ERR;
     uint32_t backBits;                      // The received data bits
 
     Write_MFRC522(BitFramingReg, 0x07);     // TxLastBists = BitFramingReg[2..0]
 
     TagType[0] = reqMode;
 
-    status = MFRC522_ToCard(PCD_TRANSCEIVE, TagType, 1, TagType, &backBits);
-    if( (status != MI_OK) || (backBits != 0x10) )
+    Result = MFRC522_ToCard(PCD_TRANSCEIVE, TagType, 1, TagType, &backBits);
+    if( (Result != MI_OK) || (backBits != 0x10) )
     {
-        status = MI_ERR;
+        Result = MI_ERR;
     }
 
-    return status;
+    return Result;
 }
 
 
@@ -241,16 +244,16 @@ static void ReadFromFIFO(uint8_t *Data, uint8_t Length)
  *			 backLen--Return data bit length
  * Return value: the successful return MI_OK
  *********************************************************************************/
-uint8_t MFRC522_ToCard(uint8_t command, uint8_t *sendData, uint8_t sendLen, uint8_t *backData , uint32_t *backLen)
+MIResult_t MFRC522_ToCard(uint8_t Cmd, uint8_t *SendData, uint8_t SendLen, uint8_t *BackData , uint32_t *RxBitCnt)
 {
-    uint8_t status = MI_ERR;
+    MIResult_t Result = MI_ERR;
     uint8_t irqEn = 0x00;
     uint8_t waitIRq = 0x00;
     uint8_t lastBits;
     uint8_t n;
     uint i;
 
-    switch( command )
+    switch( Cmd )
     {
         case PCD_AUTHENT:     // Certification cards close
         {
@@ -280,11 +283,11 @@ uint8_t MFRC522_ToCard(uint8_t command, uint8_t *sendData, uint8_t sendLen, uint
         Write_MFRC522(FIFODataReg, sendData[i]);
     }
 #endif
-    WriteToFIFO(sendData, sendLen);  // Writing data to the FIFO
+    WriteToFIFO(SendData, SendLen);  // Writing data to the FIFO
 
     // Execute the command
-    Write_MFRC522(CommandReg, command);
-    if( command == PCD_TRANSCEIVE )
+    Write_MFRC522(CommandReg, Cmd);
+    if( Cmd == PCD_TRANSCEIVE )
     {
         SetBitMask(BitFramingReg, 0x80);        // StartSend=1,transmission of data starts
     }
@@ -297,8 +300,6 @@ uint8_t MFRC522_ToCard(uint8_t command, uint8_t *sendData, uint8_t sendLen, uint
         // Set1 TxIRq RxIRq IdleIRq HiAlerIRq LoAlertIRq ErrIRq TimerIRq
         n = Read_MFRC522(CommIrqReg);
         i--;
-/* vTaskDelay(2); */
-
     }
     while ((i != 0) && !(n & 0x01) && !(n & waitIRq));
 
@@ -308,23 +309,23 @@ uint8_t MFRC522_ToCard(uint8_t command, uint8_t *sendData, uint8_t sendLen, uint
     {
         if( !(Read_MFRC522(ErrorReg) & 0x1B) )  // BufferOvfl Collerr CRCErr ProtecolErr
         {
-            status = MI_OK;
+            Result = MI_OK;
             if( n & irqEn & 0x01 )
             {
-                status = MI_NOTAGERR;             // ??
+                Result = MI_NOTAGERR;             // ??
             }
 
-            if( command == PCD_TRANSCEIVE )
+            if(PCD_TRANSCEIVE == Cmd)
             {
                 n = Read_MFRC522(FIFOLevelReg);
                 lastBits = Read_MFRC522(ControlReg) & 0x07;
                 if( lastBits )
                 {
-                    *backLen = (n - 1) * 8 + lastBits;
+                    *RxBitCnt = (n - 1) * 8 + lastBits;
                 }
                 else
                 {
-                    *backLen = n * 8;
+                    *RxBitCnt = n * 8;
                 }
 
                 if( n == 0 )
@@ -338,7 +339,7 @@ uint8_t MFRC522_ToCard(uint8_t command, uint8_t *sendData, uint8_t sendLen, uint
 
                 /* Reading the received data in FIFO */
 
-                ReadFromFIFO(backData,n);
+                ReadFromFIFO(BackData,n);
 #if 0
                 for( i = 0; i < n; i++ )
                 {
@@ -352,7 +353,7 @@ uint8_t MFRC522_ToCard(uint8_t command, uint8_t *sendData, uint8_t sendLen, uint
 #if (DEBUG == 1)
             printf("Tag Found\n");
 #endif
-            status = MI_ERR;
+            Result = MI_ERR;
         }
     }
     else
@@ -361,7 +362,7 @@ uint8_t MFRC522_ToCard(uint8_t command, uint8_t *sendData, uint8_t sendLen, uint
         printf("Tag Timeout\n");
 #endif
     }
-    return status;
+    return Result;
 }
 
 //---------------------------------------------------------------
@@ -372,9 +373,9 @@ uint8_t MFRC522_ToCard(uint8_t command, uint8_t *sendData, uint8_t sendLen, uint
  * Input parameters: serNum - returns 4 bytes card serial number, the first 5 bytes for the checksum byte
  * Return value: the successful return MI_OK
  */
-uint8_t MFRC522_Anticoll(uint8_t *serNum)
+MIResult_t MFRC522_Anticoll(uint8_t *serNum)
 {
-    uint8_t status;
+    MIResult_t Result = MI_ERR;
     uint8_t serNumCheck = 0;
     uint32_t unLen;
 
@@ -384,9 +385,9 @@ uint8_t MFRC522_Anticoll(uint8_t *serNum)
 
     serNum[0] = PICC_ANTICOLL;
     serNum[1] = 0x20;
-    status = MFRC522_ToCard(PCD_TRANSCEIVE, serNum, 2, serNum, &unLen);
+    Result = MFRC522_ToCard(PCD_TRANSCEIVE, serNum, 2, serNum, &unLen);
 
-    if( status == MI_OK )
+    if( Result == MI_OK )
     {
         /* Check card serial number */
 
@@ -403,13 +404,13 @@ uint8_t MFRC522_Anticoll(uint8_t *serNum)
 #endif
         if( serNumCheck != serNum[4] )
         {
-            status = MI_ERR;
+            Result = MI_ERR;
         }
     }
 
     //SetBitMask(CollReg, 0x80);		//ValuesAfterColl=1
 
-    return status;
+    return Result;
 }
 //---------------------------------------------------
 
@@ -419,21 +420,21 @@ uint8_t MFRC522_Anticoll(uint8_t *serNum)
  * Input parameters: blockAddr - block address; recvData - read block data
  * Return value: the successful return MI_OK
  */
-uint8_t MFRC522_Read(uint8_t blockAddr, uint8_t *recvData)
+MIResult_t MFRC522_Read(uint8_t blockAddr, uint8_t *recvData)
 {
-    uint8_t status;
+    MIResult_t Result = MI_ERR;
     uint32_t unLen;
 
     recvData[0] = PICC_READ;
     recvData[1] = blockAddr;
     CalulateCRC(recvData, 2, &recvData[2]);
-    status = MFRC522_ToCard(PCD_TRANSCEIVE, recvData, 4, recvData, &unLen);
+    Result = MFRC522_ToCard(PCD_TRANSCEIVE, recvData, 4, recvData, &unLen);
 
-    if( (status != MI_OK) || (unLen != 0x90) )
+    if( (Result != MI_OK) || (unLen != 0x90) )
     {
-        status = MI_ERR;
+        Result = MI_ERR;
     }
-    return status;
+    return Result;
 }
 
 /*
@@ -442,9 +443,9 @@ uint8_t MFRC522_Read(uint8_t blockAddr, uint8_t *recvData)
  * Input parameters: blockAddr - block address; writeData - to 16-byte data block write
  * Return value: the successful return MI_OK
  */
-uint8_t MFRC522_Write(uint8_t blockAddr, uint8_t *writeData)
+MIResult_t MFRC522_Write(uint8_t blockAddr, uint8_t *writeData)
 {
-    uint8_t status;
+    MIResult_t Result = MI_ERR;
     uint32_t recvBits;
     uint8_t i;
     uint8_t buff[18];
@@ -452,29 +453,29 @@ uint8_t MFRC522_Write(uint8_t blockAddr, uint8_t *writeData)
     buff[0] = PICC_WRITE;
     buff[1] = blockAddr;
     CalulateCRC(buff, 2, &buff[2]);
-    status = MFRC522_ToCard(PCD_TRANSCEIVE, buff, 4, buff, &recvBits);
+    Result = MFRC522_ToCard(PCD_TRANSCEIVE, buff, 4, buff, &recvBits);
 
-    if( (status != MI_OK) )	// || (recvBits != 4) || ((buff[0] & 0x0F) != 0x0A))
+    if( (Result != MI_OK) )	// || (recvBits != 4) || ((buff[0] & 0x0F) != 0x0A))
     {
-        status = MI_ERR;
+        Result = MI_ERR;
     }
 
-    if( status == MI_OK )
+    if( Result == MI_OK )
     {
         for( i = 0; i < 16; i++ )		//Data to the FIFO write 16Byte
         {
             buff[i] = *(writeData + i);
         }
         CalulateCRC(buff, 16, &buff[16]);
-        status = MFRC522_ToCard(PCD_TRANSCEIVE, buff, 18, buff, &recvBits);
+        Result = MFRC522_ToCard(PCD_TRANSCEIVE, buff, 18, buff, &recvBits);
 
-        if( (status != MI_OK) )	// || (recvBits != 4) || ((buff[0] & 0x0F) != 0x0A))
+        if( (Result != MI_OK) )	// || (recvBits != 4) || ((buff[0] & 0x0F) != 0x0A))
         {
-            status = MI_ERR;
+            Result = MI_ERR;
         }
     }
 
-    return status;
+    return Result;
 }
 
 /*
@@ -582,12 +583,14 @@ uint8_t MFRC522_SelectTag(uint8_t *serNum)
     buffer[5] = serNum[3];
     buffer[6] = serNum[4];
     buffer[7] = serNum[5];
+
 #if 0
     for( i = 0; i < 5; i++ )
     {
         buffer[i + 2] = *(serNum + i);
     }
 #endif
+
     CalulateCRC(buffer, 7, &buffer[7]);		//??
     status = MFRC522_ToCard(PCD_TRANSCEIVE, buffer, 9, buffer, &recvBits);
 
