@@ -492,8 +492,8 @@ void gsm_loop(void)
 //###############################################################################################################
 bool gsm_power(bool on_off)
 {
-  gsm_printf("[GSM] power(%d) begin\r\n", on_off);
-  uint8_t state = 0;
+    gsm_printf("[GSM] power(%d) begin\r\n", on_off);
+    uint8_t state = 0;
     if( true == on_off )
     {
         if( gsm.status.power == 1 )
@@ -537,7 +537,6 @@ bool gsm_power(bool on_off)
         HAL_GPIO_WritePin(GSM_KEY_GPIO_Port, GSM_KEY_Pin, GPIO_PIN_SET);
         gsm_delay(3000);
 #endif
-
         for( uint8_t i = 0; i < 5; i++ )
         {
             if( gsm_command("AT\r\n", 1000, NULL, 0, 1, "\r\nOK\r\n") == 1 )
@@ -546,6 +545,7 @@ bool gsm_power(bool on_off)
                 break;
             }
         }
+
         if( state == 1 )
         {
             gsm_delay(5000);
