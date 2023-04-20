@@ -526,7 +526,7 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin : GSM_KEY_Pin */
   GPIO_InitStruct.Pin = GSM_KEY_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GSM_KEY_GPIO_Port, &GPIO_InitStruct);
 
