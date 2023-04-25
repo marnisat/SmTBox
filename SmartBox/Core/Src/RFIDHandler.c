@@ -7,22 +7,7 @@
 
 #include "RFIDHandler.h"
 
-
-
-struct
-{
-    int32_t CardFound;
-    uint32_t Uid;
-    uint8_t Name[12];
-    uint16_t Balance;
-    uint8_t Resrv1[2];
-    uint8_t Number1[10];
-    uint8_t Number2[10];
-    uint8_t Number3[10];
-    uint8_t Resrv2;
-    uint32_t AcceptenceId;
-    uint32_t AcceptenceMask;
-}CustmerDetails;
+CustmerDetails_t CustmerDetails;
 
 void ExtractBcdPhoneNumber(uint8_t *BcdNumber, uint8_t *DecimalNumber)
 {
@@ -112,6 +97,7 @@ void UserTask1(void const *argument)
                     {
                         CustmerDetails.AcceptenceId   = *((uint32_t*)&CardStr[0]);
                         CustmerDetails.AcceptenceMask = *((uint32_t*)&CardStr[4]);
+                        CustmerDetails.CardFound = YES;
                     }
                 }
                 RfIdState = EVER;

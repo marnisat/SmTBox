@@ -43,6 +43,13 @@ extern "C" {
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
+typedef struct
+{
+    uint8_t Mode;    /* Restricted MOde or Normal Mode */
+}SysCfg_t;
+
+extern SysCfg_t SysCfg;
+
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/

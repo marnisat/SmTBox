@@ -22,7 +22,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#if (DEBUG == 1)
+#ifdef DEBUG
     #include <stdio.h>
 
 #ifdef __GNUC__
@@ -36,7 +36,9 @@
 #include "ili9341.h"
 #include "mfrc522.h"
 #include "Keypad4x3.h"
-
+#include "RFIDHandler.h"
+#include "gsm.h"
+#include "fonts.h"
 
 /* USER CODE END Includes */
 
@@ -84,14 +86,37 @@ void StartDefaultTask(void const * argument);
 /* USER CODE BEGIN PFP */
 void UserTask1(void const * argument);
 void TaskGsm(void const * argument);
+static void IntBuffToString(uint8_t *String,uint8_t *NumBuff,uint8_t Nof);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+struct
+{
+    uint8_t HookState;
+}SysVariables;
+
+SysCfg_t SysCfg;
+
+
+
+
 PUTCHAR_PROTOTYPE
 {
     HAL_UART_Transmit(&huart1, (uint8_t*) &ch, 1, 0xFFFF);
     return ch;
+}
+
+
+static void IntBuffToString(uint8_t *String,uint8_t *NumBuff,uint8_t Nof)
+{
+    uint8_t Cnt = 0;
+    for(Cnt=0;Cnt<Nof;Cnt++)
+    {
+        String[Cnt] = NumBuff[Cnt]+'0';
+
+    }
+    String[Cnt] = 0;
 }
 
 /* USER CODE END 0 */
@@ -157,7 +182,7 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
+  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 256);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -271,6 +296,9 @@ static void MX_RTC_Init(void)
 
   /* USER CODE END RTC_Init 0 */
 
+  RTC_TimeTypeDef sTime = {0};
+  RTC_DateTypeDef DateToUpdate = {0};
+
   /* USER CODE BEGIN RTC_Init 1 */
 
   /* USER CODE END RTC_Init 1 */
@@ -281,6 +309,30 @@ static void MX_RTC_Init(void)
   hrtc.Init.AsynchPrediv = RTC_AUTO_1_SECOND;
   hrtc.Init.OutPut = RTC_OUTPUTSOURCE_ALARM;
   if (HAL_RTC_Init(&hrtc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /* USER CODE BEGIN Check_RTC_BKUP */
+
+  /* USER CODE END Check_RTC_BKUP */
+
+  /** Initialize RTC and set the Time and Date
+  */
+  sTime.Hours = 0;
+  sTime.Minutes = 0;
+  sTime.Seconds = 0;
+
+  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  DateToUpdate.WeekDay = RTC_WEEKDAY_SUNDAY;
+  DateToUpdate.Month = RTC_MONTH_JANUARY;
+  DateToUpdate.Date = 1;
+  DateToUpdate.Year = 23;
+
+  if (HAL_RTC_SetDate(&hrtc, &DateToUpdate, RTC_FORMAT_BIN) != HAL_OK)
   {
     Error_Handler();
   }
@@ -567,7 +619,28 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+#define ON_HOOK     0x0Au
+#define OFF_HOOK    0x50u
 
+void UpdateHookState(void)
+{
+    static uint8_t HookFilter = 0;
+
+    HookFilter = HookFilter << 1;
+    if(GPIO_PIN_SET == HAL_GPIO_ReadPin(Hook_Switch_GPIO_Port, Hook_Switch_Pin))
+    {
+        HookFilter |= 0x01u;
+    }
+    else
+    {
+        HookFilter &= 0xFEu;
+    }
+
+    if(HookFilter == 0x0F)SysVariables.HookState = OFF_HOOK;
+    if(HookFilter == 0xF0)SysVariables.HookState = ON_HOOK;
+}
+
+enum {INIT=0,OFFHOOK_WAIT,NUM_DIAL,ONHOOK_WAIT,COLLECT_NUM,CARD_WAIT}SysState;
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -577,21 +650,123 @@ static void MX_GPIO_Init(void)
   * @retval None
   */
 /* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void const * argument)
+
+
+void StartDefaultTask(void const *argument)
 {
-  /* USER CODE BEGIN 5 */
+/* USER CODE BEGIN 5 */
     BaseType_t Result;
+    uint8_t DialedNumber[16];   /* To hold dialed number */
+    uint8_t DispNumber[20];     /* To Display */
+    uint8_t DialedCnt = 0u;
 
-    Result = xTaskCreate( UserTask1,"Key_RFID",100,NULL,0u,NULL);
-    Result = xTaskCreate( TaskGsm,"GmsHandler",500,NULL,0u,NULL);
+    Result = xTaskCreate(UserTask1, "Key_RFID", 100, NULL, 0u, NULL);
+    Result = xTaskCreate(TaskGsm, "GmsHandler", 500, NULL, 0u, NULL);
 
-    /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
-  (void)Result;
-  /* USER CODE END 5 */
+/* Infinite loop */
+    for( ;; )
+    {
+/*        osDelay(1); */
+        vTaskDelay(10);
+        UpdateHookState();
+        switch( SysState )
+        {
+            case INIT:
+                SysVariables.HookState = ON_HOOK;
+                SysState = OFFHOOK_WAIT;
+                SysCfg.Mode = 0;
+                break;
+            case OFFHOOK_WAIT:
+                if( SysVariables.HookState == OFF_HOOK )
+                {
+                    gsm_tonePlay(gsm_tone_dialTone, 10000, 50);
+                    Key_Init();
+                    SysState = CARD_WAIT;
+                }
+                break;
+
+            case CARD_WAIT:
+                if( YES == CustmerDetails.CardFound )
+                {
+
+                    IntBuffToString(DispNumber,CustmerDetails.Number1,10);
+                    ILI9341_WriteString(80, 80, DispNumber, Font_11x18, ILI9341_WHITE,ILI9341_BLACK);
+                    IntBuffToString(DispNumber,CustmerDetails.Number2,10);
+                    ILI9341_WriteString(80, 100, DispNumber, Font_11x18, ILI9341_WHITE,ILI9341_BLACK);
+                    IntBuffToString(DispNumber,CustmerDetails.Number3,10);
+                    ILI9341_WriteString(80, 120, DispNumber, Font_11x18, ILI9341_WHITE,ILI9341_BLACK);
+                    IntBuffToString(DispNumber,CustmerDetails.Number1,10);
+                    ILI9341_WriteString(80, 140, DispNumber, Font_11x18, ILI9341_WHITE,ILI9341_BLACK);
+
+                    SysState = COLLECT_NUM;
+                    gsm_toneStop();
+                    DialedCnt = 0;
+                }
+
+                if( ON_HOOK == SysVariables.HookState  )
+                {
+                    SysState = ONHOOK_WAIT;
+                }
+
+                break;
+            case COLLECT_NUM:
+                {
+                    int8_t Key;
+                    Key = Key_GetData();
+                    if( (-1 != Key) && (Key < 10) )
+                    {
+                        if( 1 == SysCfg.Mode )
+                        {
+                            if( Key < 5 )
+                            {
+                                DialedNumber[0] = Key;
+                                DispNumber[0] = Key + '0';
+                                DispNumber[1] = 0;
+                                DialedCnt = 1;
+                            }
+                        }
+                        else
+                        {
+                            DialedNumber[DialedCnt] = Key;
+                            DispNumber[DialedCnt]   = Key + '0';
+                            DispNumber[DialedCnt+1] = 0;
+                            DialedCnt++;
+                        }
+                        ILI9341_WriteString(170-((DialedCnt*26)/2), 0, DispNumber, Font_16x26, ILI9341_WHITE,ILI9341_BLACK);
+                    }
+
+                    if( (DialedCnt > 9) || (Key == KEY_HASH && DialedCnt != 0) )
+                    {
+                        SysState = NUM_DIAL;
+                    }
+
+                    if( ON_HOOK == SysVariables.HookState  )
+                    {
+                        SysState = ONHOOK_WAIT;
+                    }
+                }
+                break;
+            case NUM_DIAL:
+
+                if( ON_HOOK == SysVariables.HookState  )
+                {
+                    SysState = ONHOOK_WAIT;
+                }
+                break;
+
+            case ONHOOK_WAIT:
+                    ILI9341_FillScreen(ILI9341_BLACK);
+                    gsm_toneStop();
+                    SysState = OFFHOOK_WAIT;
+                break;
+
+            default:
+                break;
+
+        }
+    }
+    (void) Result;
+/* USER CODE END 5 */
 }
 
 /**
@@ -646,3 +821,5 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
+
+

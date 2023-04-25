@@ -8,6 +8,9 @@
 #ifndef KEYPAD_INC_KEYPAD4X3_H_
 #define KEYPAD_INC_KEYPAD4X3_H_
 
+#define KEY_STAR    10u
+#define KEY_HASH    11u
+
 void Key_Scan(void);
 int8_t Key_GetData(void);
 

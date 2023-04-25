@@ -53,7 +53,8 @@ static void ILI9341_WriteData(uint8_t *buff, size_t buff_size)
     }
 }
 
-static void ILI9341_SetAddressWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1) {
+static void ILI9341_SetAddressWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1)
+{
     // column address set
     ILI9341_WriteCommand(0x2A); // CASET
     {
@@ -64,7 +65,8 @@ static void ILI9341_SetAddressWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint
     // row address set
     ILI9341_WriteCommand(0x2B); // RASET
     {
-        uint8_t data[] = { (y0 >> 8) & 0xFF, y0 & 0xFF, (y1 >> 8) & 0xFF, y1 & 0xFF };
+        uint8_t data[] =
+        { (y0 >> 8) & 0xFF, y0 & 0xFF, (y1 >> 8) & 0xFF, y1 & 0xFF };
         ILI9341_WriteData(data, sizeof(data));
     }
 
@@ -229,16 +231,15 @@ void ILI9341_Init() {
     ILI9341_Unselect();
 }
 
-void ILI9341_DrawPixel(uint16_t x, uint16_t y, uint16_t color) {
-    if((x >= ILI9341_WIDTH) || (y >= ILI9341_HEIGHT))
+void ILI9341_DrawPixel(uint16_t x, uint16_t y, uint16_t color)
+{
+    if( (x >= ILI9341_WIDTH) || (y >= ILI9341_HEIGHT) )
         return;
 
     ILI9341_Select();
-
-    ILI9341_SetAddressWindow(x, y, x+1, y+1);
+    ILI9341_SetAddressWindow(x, y, x + 1, y + 1);
     uint8_t data[] = { color >> 8, color & 0xFF };
     ILI9341_WriteData(data, sizeof(data));
-
     ILI9341_Unselect();
 }
 
@@ -267,18 +268,23 @@ static void ILI9341_WriteChar(uint16_t x, uint16_t y, char ch, FontDef font, uin
     }
 }
 
-void ILI9341_WriteString(uint16_t x, uint16_t y, const char* str, FontDef font, uint16_t color, uint16_t bgcolor) {
+void ILI9341_WriteString(uint16_t x, uint16_t y, const char *str, FontDef font, uint16_t color, uint16_t bgcolor)
+{
     ILI9341_Select();
 
-    while(*str) {
-        if(x + font.width >= ILI9341_WIDTH) {
+    while (*str)
+    {
+        if( x + font.width >= ILI9341_WIDTH )
+        {
             x = 0;
             y += font.height;
-            if(y + font.height >= ILI9341_HEIGHT) {
+            if( y + font.height >= ILI9341_HEIGHT )
+            {
                 break;
             }
 
-            if(*str == ' ') {
+            if( *str == ' ' )
+            {
                 // skip spaces in the beginning of the new line
                 str++;
                 continue;
@@ -289,27 +295,28 @@ void ILI9341_WriteString(uint16_t x, uint16_t y, const char* str, FontDef font, 
         x += font.width;
         str++;
     }
-
     ILI9341_Unselect();
 }
 
-void ILI9341_FillRectangle(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color) {
+void ILI9341_FillRectangle(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color)
+{
     // clipping
-    if((x >= ILI9341_WIDTH) || (y >= ILI9341_HEIGHT)) return;
-    if((x + w - 1) >= ILI9341_WIDTH) w = ILI9341_WIDTH - x;
-    if((y + h - 1) >= ILI9341_HEIGHT) h = ILI9341_HEIGHT - y;
+    if( (x >= ILI9341_WIDTH) || (y >= ILI9341_HEIGHT) ) return;
+    if( (x + w - 1) >= ILI9341_WIDTH ) w = ILI9341_WIDTH - x;
+    if( (y + h - 1) >= ILI9341_HEIGHT ) h = ILI9341_HEIGHT - y;
 
     ILI9341_Select();
-    ILI9341_SetAddressWindow(x, y, x+w-1, y+h-1);
+    ILI9341_SetAddressWindow(x, y, x + w - 1, y + h - 1);
 
     uint8_t data[] = { color >> 8, color & 0xFF };
     HAL_GPIO_WritePin(ILI9341_DC_GPIO_Port, ILI9341_DC_Pin, GPIO_PIN_SET);
-    for(y = h; y > 0; y--) {
-        for(x = w; x > 0; x--) {
+    for( y = h; y > 0; y-- )
+    {
+        for( x = w; x > 0; x-- )
+        {
             HAL_SPI_Transmit(&ILI9341_SPI_PORT, data, sizeof(data), HAL_MAX_DELAY);
         }
     }
-
     ILI9341_Unselect();
 }
 
@@ -318,14 +325,15 @@ void ILI9341_FillScreen(uint16_t color)
     ILI9341_FillRectangle(0, 0, ILI9341_WIDTH, ILI9341_HEIGHT, color);
 }
 
-void ILI9341_DrawImage(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint16_t* data) {
-    if((x >= ILI9341_WIDTH) || (y >= ILI9341_HEIGHT)) return;
-    if((x + w - 1) >= ILI9341_WIDTH) return;
-    if((y + h - 1) >= ILI9341_HEIGHT) return;
+void ILI9341_DrawImage(uint16_t x, uint16_t y, uint16_t w, uint16_t h, const uint16_t *data)
+{
+    if( (x >= ILI9341_WIDTH) || (y >= ILI9341_HEIGHT) ) return;
+    if( (x + w - 1) >= ILI9341_WIDTH ) return;
+    if( (y + h - 1) >= ILI9341_HEIGHT ) return;
 
     ILI9341_Select();
-    ILI9341_SetAddressWindow(x, y, x+w-1, y+h-1);
-    ILI9341_WriteData((uint8_t*)data, sizeof(uint16_t)*w*h);
+    ILI9341_SetAddressWindow(x, y, x + w - 1, y + h - 1);
+    ILI9341_WriteData((uint8_t*) data, sizeof(uint16_t) * w * h);
     ILI9341_Unselect();
 }
 

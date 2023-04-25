@@ -185,3 +185,9 @@ int8_t Key_GetData(void)
     }
     return Key;
 }
+
+void Key_Init(void)
+{
+    KeyQueue.WrtIndex = 0;
+    KeyQueue.RdIndex = 0;
+}

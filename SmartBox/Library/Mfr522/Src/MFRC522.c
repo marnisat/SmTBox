@@ -350,7 +350,7 @@ MIResult_t MFRC522_ToCard(uint8_t Cmd, uint8_t *SendData, uint8_t SendLen, uint8
         }
         else
         {
-#if (DEBUG == 1)
+#ifdef DEBUG
             printf("Tag Found\n");
 #endif
             Result = MI_ERR;
@@ -358,7 +358,7 @@ MIResult_t MFRC522_ToCard(uint8_t Cmd, uint8_t *SendData, uint8_t SendLen, uint8
     }
     else
     {
-#if (DEBUG == 1)
+#ifdef  DEBUG
         printf("Tag Timeout\n");
 #endif
     }
