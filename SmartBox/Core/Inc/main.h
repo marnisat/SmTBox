@@ -49,6 +49,7 @@ typedef struct
 }SysCfg_t;
 
 extern SysCfg_t SysCfg;
+extern I2C_HandleTypeDef hi2c1;
 
 /* USER CODE END Includes */
 

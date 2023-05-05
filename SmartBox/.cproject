@@ -56,6 +56,7 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/SmartBox/Library/Mfr522/Inc}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/SmartBox/Library/Keypad/Inc}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/SmartBox/Library/Sim800C/Inc}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/SmartBox/Library/EEProm/Inc}&quot;"/>
 								</option>
 								<inputType id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c.1730169400" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.compiler.input.c"/>
 							</tool>

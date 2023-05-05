@@ -182,7 +182,7 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 256);
+  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -296,9 +296,6 @@ static void MX_RTC_Init(void)
 
   /* USER CODE END RTC_Init 0 */
 
-  RTC_TimeTypeDef sTime = {0};
-  RTC_DateTypeDef DateToUpdate = {0};
-
   /* USER CODE BEGIN RTC_Init 1 */
 
   /* USER CODE END RTC_Init 1 */
@@ -309,30 +306,6 @@ static void MX_RTC_Init(void)
   hrtc.Init.AsynchPrediv = RTC_AUTO_1_SECOND;
   hrtc.Init.OutPut = RTC_OUTPUTSOURCE_ALARM;
   if (HAL_RTC_Init(&hrtc) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /* USER CODE BEGIN Check_RTC_BKUP */
-
-  /* USER CODE END Check_RTC_BKUP */
-
-  /** Initialize RTC and set the Time and Date
-  */
-  sTime.Hours = 0;
-  sTime.Minutes = 0;
-  sTime.Seconds = 0;
-
-  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  DateToUpdate.WeekDay = RTC_WEEKDAY_SUNDAY;
-  DateToUpdate.Month = RTC_MONTH_JANUARY;
-  DateToUpdate.Date = 1;
-  DateToUpdate.Year = 23;
-
-  if (HAL_RTC_SetDate(&hrtc, &DateToUpdate, RTC_FORMAT_BIN) != HAL_OK)
   {
     Error_Handler();
   }
@@ -650,11 +623,9 @@ enum {INIT=0,OFFHOOK_WAIT,NUM_DIAL,ONHOOK_WAIT,COLLECT_NUM,CARD_WAIT}SysState;
   * @retval None
   */
 /* USER CODE END Header_StartDefaultTask */
-
-
-void StartDefaultTask(void const *argument)
+void StartDefaultTask(void const * argument)
 {
-/* USER CODE BEGIN 5 */
+  /* USER CODE BEGIN 5 */
     BaseType_t Result;
     uint8_t DialedNumber[16];   /* To hold dialed number */
     uint8_t DispNumber[20];     /* To Display */
@@ -766,7 +737,7 @@ void StartDefaultTask(void const *argument)
         }
     }
     (void) Result;
-/* USER CODE END 5 */
+  /* USER CODE END 5 */
 }
 
 /**
@@ -821,5 +792,3 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-
-
