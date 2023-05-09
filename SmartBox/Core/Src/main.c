@@ -33,12 +33,15 @@
 #define PUTCHAR_PROTOTYPE int fputc(int ch, FILE *f)
 #endif /* __GNUC__ */
 #endif
+
 #include "ili9341.h"
 #include "mfrc522.h"
 #include "Keypad4x3.h"
 #include "RFIDHandler.h"
 #include "gsm.h"
 #include "fonts.h"
+#include "ee24.h"
+#include "userinterface.h"
 
 /* USER CODE END Includes */
 
@@ -54,7 +57,8 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+QueueHandle_t GsmQueue;
+uint8_t QueueBuffer[20];
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -128,7 +132,7 @@ static void IntBuffToString(uint8_t *String,uint8_t *NumBuff,uint8_t Nof)
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
+    BaseType_t Result;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -160,8 +164,6 @@ int main(void)
   MFRC522_Init();
   printf("Hello World..\n");
 
-  ILI9341_FillScreen(ILI9341_BLACK);
-
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -182,10 +184,14 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 128);
+  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 512);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
+  osThreadDef(Key_RFID, UserTask1, osPriorityNormal, 0, 128);
+  defaultTaskHandle = osThreadCreate(osThread(Key_RFID), NULL);
+  osThreadDef(GmsHandler, TaskGsm, osPriorityNormal, 0, 512);
+  defaultTaskHandle = osThreadCreate(osThread(GmsHandler), NULL);
   /* add threads, ... */
   /* USER CODE END RTOS_THREADS */
 
@@ -200,6 +206,7 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
   }
+  (void) Result;
   /* USER CODE END 3 */
 }
 
@@ -613,7 +620,16 @@ void UpdateHookState(void)
     if(HookFilter == 0xF0)SysVariables.HookState = ON_HOOK;
 }
 
-enum {INIT=0,OFFHOOK_WAIT,NUM_DIAL,ONHOOK_WAIT,COLLECT_NUM,CARD_WAIT}SysState;
+
+
+enum {ST_INIT=0,ST_WAITforNETWORK,ST_OFFHOOK_WAIT,ST_NUM_DIAL,ST_ONHOOK_WAIT,ST_COLLECT_NUM,ST_CARD_WAIT,ST_METERING}SysState;
+uint32_t CallDuration = 0;
+uint8_t CallSCharge = 0;
+uint8_t CallUnitPrice = 0;
+uint16_t CallPrice = 0;
+
+
+uint8_t DispNumber[20];     /* To Display */
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -626,13 +642,14 @@ enum {INIT=0,OFFHOOK_WAIT,NUM_DIAL,ONHOOK_WAIT,COLLECT_NUM,CARD_WAIT}SysState;
 void StartDefaultTask(void const * argument)
 {
   /* USER CODE BEGIN 5 */
-    BaseType_t Result;
+    bool fDialToneOn = NO;
     uint8_t DialedNumber[16];   /* To hold dialed number */
-    uint8_t DispNumber[20];     /* To Display */
+
     uint8_t DialedCnt = 0u;
 
-    Result = xTaskCreate(UserTask1, "Key_RFID", 100, NULL, 0u, NULL);
-    Result = xTaskCreate(TaskGsm, "GmsHandler", 500, NULL, 0u, NULL);
+    osMessageQDef(GsmQueue,1, uint32_t);
+
+    GsmQueue = xQueueCreate(1,4);
 
 /* Infinite loop */
     for( ;; )
@@ -642,50 +659,108 @@ void StartDefaultTask(void const * argument)
         UpdateHookState();
         switch( SysState )
         {
-            case INIT:
+            case ST_INIT:
+            {
+                int32_t  CfgStatus;
+                CfgStatus = EE24_ReadConfig(&SysCfg);
+                if( CfgStatus == -1) /* On First PowerOn, Corrupted cases,write defaults */
+                {
+                    EE24_SetCfgDefaults();  /* Write Defaults */
+                }
+                USER_DrawStatusBar();
+                ILI9341_BkltOn();
+
                 SysVariables.HookState = ON_HOOK;
-                SysState = OFFHOOK_WAIT;
-                SysCfg.Mode = 0;
+                ILI9341_WriteString(55, 92, "WAITING FOR NETWORK", Font_11x18, ILI9341_WHITE, ILI9341_BLACK);
+                SysState = ST_WAITforNETWORK;
+                SysState = ST_METERING;
+
+#if 0
+                int32_t  CfgStatus;
+                CfgStatus = EE24_ReadConfig(&SysCfg);
+                if( CfgStatus == -2)
+                {
+                    /* Change in Lock byte */
+                }
+                else
+                {
+                    if( CfgStatus == -1) /* On First PowerOn, Corrupted cases,write defaults */
+                    {
+                        EE24_SetCfgDefaults();  /* Write Defaults */
+                    }
+                    else
+                    {
+                        SysState = WAITforNETWORK;
+                    }
+                }
+#endif
                 break;
-            case OFFHOOK_WAIT:
+            }
+            case ST_WAITforNETWORK:
+                if(1 == gsm_registered())
+                {
+                    if(NO == CustmerDetails.CardFound)
+                    {
+                        ILI9341_WriteString(55, 92, "INSERT CARD           ", Font_11x18, ILI9341_WHITE, ILI9341_BLACK);
+                    }
+                SysState = ST_OFFHOOK_WAIT;
+                }
+                break;
+            case ST_OFFHOOK_WAIT:
                 if( SysVariables.HookState == OFF_HOOK )
                 {
-                    gsm_tonePlay(gsm_tone_dialTone, 10000, 50);
+                    QueueBuffer[0] = 0x33;
+                    osMessagePut(GsmQueue,QueueBuffer,100);
+                    fDialToneOn = true;
                     Key_Init();
-                    SysState = CARD_WAIT;
+                    SysState = ST_CARD_WAIT;
                 }
                 break;
 
-            case CARD_WAIT:
+            case ST_CARD_WAIT:
                 if( YES == CustmerDetails.CardFound )
                 {
-
-                    IntBuffToString(DispNumber,CustmerDetails.Number1,10);
-                    ILI9341_WriteString(80, 80, DispNumber, Font_11x18, ILI9341_WHITE,ILI9341_BLACK);
-                    IntBuffToString(DispNumber,CustmerDetails.Number2,10);
-                    ILI9341_WriteString(80, 100, DispNumber, Font_11x18, ILI9341_WHITE,ILI9341_BLACK);
-                    IntBuffToString(DispNumber,CustmerDetails.Number3,10);
-                    ILI9341_WriteString(80, 120, DispNumber, Font_11x18, ILI9341_WHITE,ILI9341_BLACK);
-                    IntBuffToString(DispNumber,CustmerDetails.Number1,10);
-                    ILI9341_WriteString(80, 140, DispNumber, Font_11x18, ILI9341_WHITE,ILI9341_BLACK);
-
-                    SysState = COLLECT_NUM;
-                    gsm_toneStop();
+                    if( 1 == SysCfg.Mode )
+                    {
+                        IntBuffToString(DispNumber, CustmerDetails.Number1, 10);
+                        ILI9341_WriteString(80, 80, DispNumber, Font_16x26, ILI9341_WHITE, ILI9341_BLACK);
+                        IntBuffToString(DispNumber, CustmerDetails.Number2, 10);
+                        ILI9341_WriteString(80, 120, DispNumber, Font_16x26, ILI9341_COLOR565(192, 192, 192),
+                                ILI9341_BLACK);
+                        IntBuffToString(DispNumber, CustmerDetails.Number3, 10);
+                        ILI9341_WriteString(80, 160, DispNumber, Font_16x26, ILI9341_COLOR565(192, 192, 192),
+                                ILI9341_BLACK);
+                        IntBuffToString(DispNumber, CustmerDetails.Number1, 10);
+                        ILI9341_WriteString(80, 200, DispNumber, Font_16x26, ILI9341_COLOR565(192, 192, 192),
+                                ILI9341_BLACK);
+                    }
+                    else
+                    {
+                        ILI9341_WriteString(55, 92, "DAIL THE NUMBER           ", Font_11x18, ILI9341_WHITE, ILI9341_BLACK);
+                        SysState = ST_COLLECT_NUM;
+                    }
                     DialedCnt = 0;
                 }
 
                 if( ON_HOOK == SysVariables.HookState  )
                 {
-                    SysState = ONHOOK_WAIT;
+                    SysState = ST_ONHOOK_WAIT;
                 }
 
                 break;
-            case COLLECT_NUM:
+            case ST_COLLECT_NUM:
                 {
                     int8_t Key;
                     Key = Key_GetData();
                     if( (-1 != Key) && (Key < 10) )
                     {
+                        if(true == fDialToneOn)
+                        {
+                            QueueBuffer[0] = 0x44;
+                            osMessagePut(GsmQueue,QueueBuffer,100);
+                            fDialToneOn = false;
+                        }
+
                         if( 1 == SysCfg.Mode )
                         {
                             if( Key < 5 )
@@ -703,32 +778,64 @@ void StartDefaultTask(void const * argument)
                             DispNumber[DialedCnt+1] = 0;
                             DialedCnt++;
                         }
-                        ILI9341_WriteString(170-((DialedCnt*26)/2), 0, DispNumber, Font_16x26, ILI9341_WHITE,ILI9341_BLACK);
+                        ILI9341_WriteString(170-((DialedCnt*26)/2), 92, DispNumber, Font_16x26, ILI9341_WHITE,ILI9341_BLACK);
                     }
 
                     if( (DialedCnt > 9) || (Key == KEY_HASH && DialedCnt != 0) )
                     {
-                        SysState = NUM_DIAL;
+
+                        QueueBuffer[0] = 0x11;
+                        QueueBuffer[1] = 0x00; //Size of the Msg.For now 0
+                        uint8_t Cnt;
+                        for(Cnt=0;Cnt<10;Cnt++)
+                        {
+                            QueueBuffer[Cnt+2] = DispNumber[Cnt];
+                        }
+                        QueueBuffer[Cnt+2] = 0; /* Terminate String Buffer */
+                        osMessagePut(GsmQueue,QueueBuffer,100);
+                        SysState = ST_NUM_DIAL;
                     }
 
                     if( ON_HOOK == SysVariables.HookState  )
                     {
-                        SysState = ONHOOK_WAIT;
+                        SysState = ST_ONHOOK_WAIT;
                     }
                 }
                 break;
-            case NUM_DIAL:
+            case ST_NUM_DIAL:
 
                 if( ON_HOOK == SysVariables.HookState  )
                 {
-                    SysState = ONHOOK_WAIT;
+                    CallPrice = SysCfg.UnitPrice + SysCfg.SCharge;
+                    QueueBuffer[0] = 0x22;
+                    osMessagePut(GsmQueue,QueueBuffer,100);
+                    SysState = ST_ONHOOK_WAIT;
                 }
                 break;
 
-            case ONHOOK_WAIT:
-                    ILI9341_FillScreen(ILI9341_BLACK);
-                    gsm_toneStop();
-                    SysState = OFFHOOK_WAIT;
+            case ST_METERING:
+            {
+                CallDuration++;
+//              sprintf(DispNumber,"%02s:%02s",(uint8_t)(CallDuration/600),(uint8_t)(CallDuration%600));
+                sprintf(DispNumber,"%02d:%02d",(uint8_t)(CallDuration/1000),(uint8_t)(CallDuration%1000));
+                ILI9341_WriteString(55, 92, DispNumber, Font_16x26, ILI9341_WHITE,ILI9341_BLACK);
+                break;
+            }
+            case ST_ONHOOK_WAIT:
+
+                if(true == fDialToneOn)
+                {
+                    QueueBuffer[0] = 0x44;
+                    osMessagePut(GsmQueue,QueueBuffer,100);
+                    fDialToneOn = false;
+                }
+                else
+                {
+                    USER_ClearDisplay();
+                    QueueBuffer[0] = 0x22;
+                    osMessagePut(GsmQueue,QueueBuffer,100);
+                }
+                SysState = ST_WAITforNETWORK;
                 break;
 
             default:
@@ -736,7 +843,7 @@ void StartDefaultTask(void const * argument)
 
         }
     }
-    (void) Result;
+
   /* USER CODE END 5 */
 }
 

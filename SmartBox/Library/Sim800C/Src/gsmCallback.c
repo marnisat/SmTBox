@@ -46,7 +46,9 @@ void gsm_callback_networkNotFound(void)
 void gsm_callback_newCall(const char *number)
 {
   gsm_printf("CALLBACK NEW CALL FROM: %s\r\n", number);
-  //gsm_call_answer();
+  gsm_call_answer();
+  //gsm_call_end();
+
 }
 //###############################################################################################################
 void gsm_callback_endCall(void)

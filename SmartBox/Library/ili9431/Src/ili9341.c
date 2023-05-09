@@ -3,11 +3,11 @@
 #include "ili9341.h"
 #include "testimg.h"
 
-#if (DEBUG==1)
+#ifdef DEBUG
 	#include "cmsis_os.h"
 #endif
 
-static void ILI9341_BkltOn(void)
+void ILI9341_BkltOn(void)
 {
     HAL_GPIO_WritePin(ILI9341_BKLT_GPIO_Port, ILI9341_BKLT_Pin, GPIO_PIN_SET);
 }
@@ -77,7 +77,6 @@ static void ILI9341_SetAddressWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint
 void ILI9341_Init() {
     ILI9341_Select();
     ILI9341_Reset();
-    ILI9341_BkltOn();
 
 
     // command list is based on https://github.com/martnak/STM32-ILI9341
@@ -243,7 +242,7 @@ void ILI9341_DrawPixel(uint16_t x, uint16_t y, uint16_t color)
     ILI9341_Unselect();
 }
 
-static void ILI9341_WriteChar(uint16_t x, uint16_t y, char ch, FontDef font, uint16_t color, uint16_t bgcolor)
+void ILI9341_WriteChar(uint16_t x, uint16_t y, char ch, FontDef font, uint16_t color, uint16_t bgcolor)
 {
     uint32_t i, b, j;
 

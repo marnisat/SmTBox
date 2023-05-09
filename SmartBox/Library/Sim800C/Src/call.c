@@ -35,7 +35,7 @@ bool gsm_call_dial(const char *number, uint8_t waitSecond)
     memset(gsm.call.dtmfBuffer, 0, sizeof(gsm.call.dtmfBuffer));
     gsm.call.dtmfCount = 0;
     gsm.call.dtmfUpdate = 0;
-    sprintf(str, "ATD%s;\r\n", number);
+    sprintf(str, "ATD+91%s;\r\n", number);
     uint8_t ans = gsm_command(str, waitSecond * 1000, NULL, 0, 5, "\r\nNO DIALTONE\r\n", "\r\nBUSY\r\n",
             "\r\nNO CARRIER\r\n", "\r\nNO ANSWER\r\n", "\r\nOK\r\n");
     if( ans == 5 )

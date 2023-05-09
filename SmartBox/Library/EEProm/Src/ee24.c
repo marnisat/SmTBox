@@ -131,3 +131,63 @@ bool ee24_eraseChip(void)
   return true;  
 }
 //################################################################################################################
+
+int32_t EE24_ReadConfig(SysCfg_t * SysCfg)
+{
+    uint8_t RdBuff[16] = {0};
+    CRC16_t CfcCrc = 0;
+    CRC16_t RdCrc = 0;
+    int32_t Result = false;
+    Result = (int32_t)ee24_read(CFG_ADD,RdBuff,CFG_SIZE,100);
+    if(true == Result)
+    {
+        if(((EEPage1_t*)RdBuff)->Signature == SIGNATURE)
+        {
+            CfcCrc = CRC16_ComputeCrc(RdBuff,(CFG_SIZE - 2u));
+            RdCrc = ((EEPage1_t*)RdBuff)->Crc;
+            if( ((EEPage1_t*)RdBuff)->Crc == CfcCrc )
+            {
+                SysCfg->Bid             = ((EEPage1_t*)RdBuff)->SysCfg.Bid;
+                SysCfg->BoxActiveStatus = ((EEPage1_t*)RdBuff)->SysCfg.BoxActiveStatus;
+                SysCfg->Mode            = ((EEPage1_t*)RdBuff)->SysCfg.Mode;
+                SysCfg->UnitPrice       = ((EEPage1_t*)RdBuff)->SysCfg.UnitPrice;
+                SysCfg->SCharge         = ((EEPage1_t*)RdBuff)->SysCfg.SCharge;
+                Result = 0;
+            }
+            else
+            {
+                Result = -1;    /* Memory Corruption */
+            }
+        }
+        else
+        {
+            Result = -1;    /* Not Formatted,(First PowerON) */
+        }
+    }
+    return Result;
+}
+
+#define DEF_BID         0xFFFFFFFFu
+#define DEF_BOX_ASTATUS -1
+#define DEF_UnitPrice   30u
+#define DEF_SerCharge   100u
+#define DEF_Mode        0u
+
+
+
+int32_t EE24_SetCfgDefaults(void)
+{
+    int32_t Result;
+    uint8_t WrtBuff[16] = { 0 };
+    ((EEPage1_t*) WrtBuff)->Signature               = SIGNATURE;
+    ((EEPage1_t*) WrtBuff)->LockId                  = 0x1234;
+    ((EEPage1_t*) WrtBuff)->SysCfg.Bid              = DEF_BID;
+    ((EEPage1_t*) WrtBuff)->SysCfg.BoxActiveStatus  = DEF_BOX_ASTATUS;
+    ((EEPage1_t*) WrtBuff)->SysCfg.UnitPrice        = DEF_UnitPrice;
+    ((EEPage1_t*) WrtBuff)->SysCfg.SCharge          = DEF_SerCharge;
+    ((EEPage1_t*) WrtBuff)->SysCfg.Mode             = DEF_Mode;
+    ((EEPage1_t*) WrtBuff)->Crc = CRC16_ComputeCrc(WrtBuff, (CFG_SIZE - 2));
+    Result = ee24_write(CFG_ADD, WrtBuff, CFG_SIZE, 100u);
+    return Result;
+}
+

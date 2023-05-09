@@ -43,13 +43,24 @@ extern "C" {
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
+#include "FreeRTOS.h"
+#include "queue.h"
+
+
 typedef struct
 {
-    uint8_t Mode;    /* Restricted MOde or Normal Mode */
-}SysCfg_t;
+    uint32_t Bid;               /* Box Identification number */
+    int8_t BoxActiveStatus;     /* Box status Active/DeActive */
+    uint8_t UnitPrice;          /* Deduction Amount per minute */
+    uint8_t SCharge;            /* Service Charge */
+    uint8_t Mode;               /* Restricted MOde or Normal Mode */
+    // Active Hours
+    // InCall Accept Status
+}SysCfg_t;  /* Total 8 Bytes */
 
 extern SysCfg_t SysCfg;
 extern I2C_HandleTypeDef hi2c1;
+extern QueueHandle_t GsmQueue;
 
 /* USER CODE END Includes */
 

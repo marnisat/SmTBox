@@ -9,6 +9,7 @@
 #define INC_GSMHANDLER_H_
 
 #include <sys/_stdint.h>
+#include "stdbool.h"
 #include "main.h"
 #include "gsm.h"
 

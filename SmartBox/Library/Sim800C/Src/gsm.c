@@ -145,9 +145,13 @@ void gsm_init_commands(void)
   gsm_command("AT+CREG=1\r\n", 1000, NULL, 0, 1, "\r\nOK\r\n");
   gsm_command("AT+FSHEX=0\r\n", 1000, NULL, 0, 1, "\r\nOK\r\n");
 #if (_GSM_CALL == 1)
-  gsm_command("AT+COLP=1\r\n", 1000, NULL, 0, 1, "\r\nOK\r\n");
+  gsm_command("AT+COLP=0\r\n", 1000, NULL, 0, 1, "\r\nOK\r\n");  //??
   gsm_command("AT+CLIP=1\r\n", 1000, NULL, 0, 1, "\r\nOK\r\n");
   gsm_command("AT+DDET=1\r\n", 1000, NULL, 0, 1, "\r\nOK\r\n");
+  /* By Me */
+  gsm_command("ATS7=20\r\n", 1000, NULL, 0, 1, "\r\nOK\r\n");
+  //gsm_command("AT+CLCC=0\r\n", 1000, NULL, 0, 1, "\r\nOK\r\n"); /* By Me */
+  //gsm_command("ATS6?\r\n", 1000, NULL, 0, 1, "\r\nOK\r\n");
 #endif
 #if (_GSM_MSG == 1)
   gsm_msg_textMode(true, false);
@@ -200,9 +204,11 @@ bool gsm_init(void)
 
   if (atc_addSearch(&gsm.atc, "POWER DOWN\r\n") == false)
     return false;
-
+#if 1
+/*  Disable Unsolicited Result Code */
   if (atc_addSearch(&gsm.atc, "\r\n+CREG:") == false)
     return false;
+#endif
 #if (_GSM_CALL == 1)
   if (atc_addSearch(&gsm.atc, "\r\n+CLIP:") == false)
     return false;
@@ -237,14 +243,14 @@ bool gsm_init(void)
 //###############################################################################################################
 void gsm_loop(void)
 {
-  static uint32_t gsm_time_1s = 0;
-  static uint32_t gsm_time_10s = 0;
-  static uint32_t gsm_time_60s = 0;
-  static uint8_t gsm_time_10s_check_power = 0;  
-  atc_loop(&gsm.atc);
-  char str1[64];
-  char str2[16];
-  //  +++ 1s timer  ######################
+    static uint32_t gsm_time_1s = 0;
+    static uint32_t gsm_time_10s = 0;
+    static uint32_t gsm_time_60s = 0;
+    static uint8_t gsm_time_10s_check_power = 0;
+    atc_loop(&gsm.atc);
+    char str1[64];
+    char str2[16];
+    //  +++ 1s timer  ######################
     if( HAL_GetTick() - gsm_time_1s > 1000 )
     {
         gsm_time_1s = HAL_GetTick();
@@ -326,24 +332,24 @@ void gsm_loop(void)
 
         //  +++ call check
 #if (_GSM_CALL == 1)
-    if (gsm.status.power == 1)
-    {
-      if (gsm.call.newCall == 1)
-      {
-        gsm.call.newCall = 0;
-        gsm_callback_newCall(gsm.call.number);
-      }
-      if (gsm.call.endCall == 1)
-      {
-        gsm.call.endCall = 0;
-        gsm_callback_endCall();
-      }
-      if (gsm.call.dtmfUpdate == 1)
-      {
-        gsm.call.dtmfUpdate = 0;
-        gsm_callback_dtmf(gsm.call.dtmfBuffer, gsm.call.dtmfCount);
-      }
-    }
+        if( gsm.status.power == 1 )
+        {
+            if( gsm.call.newCall == 1 )
+            {
+                gsm.call.newCall = 0;
+                gsm_callback_newCall(gsm.call.number);
+            }
+            if( gsm.call.endCall == 1 )
+            {
+                gsm.call.endCall = 0;
+                gsm_callback_endCall();
+            }
+            if( gsm.call.dtmfUpdate == 1 )
+            {
+                gsm.call.dtmfUpdate = 0;
+                gsm_callback_dtmf(gsm.call.dtmfBuffer, gsm.call.dtmfCount);
+            }
+        }
 #endif
         //  --- call check
 
@@ -387,7 +393,7 @@ void gsm_loop(void)
 #endif
         //  --- network check
     }
-  //  --- 1s timer  ######################
+    //  --- 1s timer  ######################
 
     //  +++ 10s timer ######################
     if( (HAL_GetTick() - gsm_time_10s > 10000) && (gsm.status.power == 1) )
@@ -402,8 +408,6 @@ void gsm_loop(void)
             if( gsm.status.netReg == 0 )
             {
                 gsm_command("AT+CREG?\r\n", 1000, NULL, 0, 0);
-
-
             }
         }
         //  --- check network
@@ -488,6 +492,11 @@ void gsm_loop(void)
         //  --- msg check
     }
     //  --- 60s timer  ######################
+
+    BaseType_t xQueueReceive(QueueHandle_t xQueue,
+            void *pvBuffer,
+            TickType_t xTicksToWait);
+
 }
 //###############################################################################################################
 bool gsm_power(bool on_off)
