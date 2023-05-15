@@ -119,16 +119,31 @@ typedef struct
 }gsm_time_t;
 
 #if (_GSM_CALL == 1)
+typedef enum
+{
+    CL_ACTIVE = 0,
+    CL_HELD,
+    CL_DIALING,
+    CL_ALERTING,
+    CL_INCOMMING,
+    CL_WAITING,
+    CL_DISCONNECT
+}CallState_t;
+
 typedef struct
 {
-  uint8_t           newCall;
-  uint8_t           endCall;
-  char              number[16];
-  uint8_t           dtmfCount;
-  uint8_t           dtmfUpdate;
-  char              dtmfBuffer[16];
-
-}gsm_call_t;
+#if 0
+    uint8_t           newCall;
+    uint8_t           endCall;
+#else
+    uint8_t CallStateChange;
+    CallState_t CallState;
+#endif
+    char number[16];
+    uint8_t dtmfCount;
+    uint8_t dtmfUpdate;
+    char dtmfBuffer[16];
+} gsm_call_t;
 #endif
 
 #if (_GSM_MSG == 1)
@@ -234,6 +249,7 @@ bool            gsm_ussd(char *command, char *answer, uint16_t sizeOfAnswer, uin
 bool            gsm_call_answer(void);
 bool            gsm_call_dial(const char *number, uint8_t waitSecond);
 bool            gsm_call_end(void);
+CallState_t     gsm_call_state(void);
 //###############################################################################################################
 bool            gsm_msg_textMode(bool on_off, bool integer);
 bool            gsm_msg_isTextMode(void);

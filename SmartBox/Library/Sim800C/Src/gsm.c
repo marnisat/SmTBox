@@ -32,6 +32,7 @@ void gsm_found(char *found_str)
     }
   }
 #if (_GSM_CALL == 1)
+#if 0
   str = strstr(found_str, "\r\n+CLIP:");
   if (str != NULL)
   {
@@ -45,6 +46,23 @@ void gsm_found(char *found_str)
     gsm.call.endCall = 1;
     return;
   }
+#else
+  str = strstr(found_str, "\r\n+CLCC:");
+  if(NULL != str)
+  {
+      uint8_t Arg1,Arg2;
+/*      if (sscanf(str, "\r\n+CLCC:%hd,%hd,%hd,%hd,%hd,\"%[^\"]\"",&Arg1,&Arg1,&Arg2,&Arg2,&Arg2,gsm.call.number) == 1) */
+      if (sscanf(&str[13], "%hd",&Arg1) == 1)
+      {
+        gsm.call.CallStateChange = 1;
+        gsm.call.CallState = Arg1;
+      }
+      return;
+  }
+#endif
+
+
+
   str = strstr(found_str, "\r\n+DTMF:");
   if (str != NULL)
   {
@@ -145,12 +163,12 @@ void gsm_init_commands(void)
   gsm_command("AT+CREG=1\r\n", 1000, NULL, 0, 1, "\r\nOK\r\n");
   gsm_command("AT+FSHEX=0\r\n", 1000, NULL, 0, 1, "\r\nOK\r\n");
 #if (_GSM_CALL == 1)
-  gsm_command("AT+COLP=0\r\n", 1000, NULL, 0, 1, "\r\nOK\r\n");  //??
-  gsm_command("AT+CLIP=1\r\n", 1000, NULL, 0, 1, "\r\nOK\r\n");
+  gsm_command("AT+COLP=0\r\n", 1000, NULL, 0, 1, "\r\nOK\r\n");
+  gsm_command("AT+CLIP=0\r\n", 1000, NULL, 0, 1, "\r\nOK\r\n");
   gsm_command("AT+DDET=1\r\n", 1000, NULL, 0, 1, "\r\nOK\r\n");
   /* By Me */
-  gsm_command("ATS7=20\r\n", 1000, NULL, 0, 1, "\r\nOK\r\n");
-  //gsm_command("AT+CLCC=0\r\n", 1000, NULL, 0, 1, "\r\nOK\r\n"); /* By Me */
+  gsm_command("ATS7=0\r\n", 1000, NULL, 0, 1, "\r\nOK\r\n");
+  gsm_command("AT+CLCC=1\r\n", 1000, NULL, 0, 1, "\r\nOK\r\n"); /* By Me */
   //gsm_command("ATS6?\r\n", 1000, NULL, 0, 1, "\r\nOK\r\n");
 #endif
 #if (_GSM_MSG == 1)
@@ -210,12 +228,19 @@ bool gsm_init(void)
     return false;
 #endif
 #if (_GSM_CALL == 1)
+#if 0
   if (atc_addSearch(&gsm.atc, "\r\n+CLIP:") == false)
     return false;
+#else
+  if (atc_addSearch(&gsm.atc, "\r\n+CLCC:") == false)   /* Whenever change in Call status */
+    return false;
+#endif
   if (atc_addSearch(&gsm.atc, "\r\nNO CARRIER\r\n") == false)
     return false;
   if (atc_addSearch(&gsm.atc, "\r\n+DTMF:") == false)
     return false;
+
+
 #endif
 #if (_GSM_MSG == 1)
   if (atc_addSearch(&gsm.atc, "\r\n+CMTI:") == false)
@@ -334,6 +359,7 @@ void gsm_loop(void)
 #if (_GSM_CALL == 1)
         if( gsm.status.power == 1 )
         {
+#if 0
             if( gsm.call.newCall == 1 )
             {
                 gsm.call.newCall = 0;
@@ -344,6 +370,14 @@ void gsm_loop(void)
                 gsm.call.endCall = 0;
                 gsm_callback_endCall();
             }
+#else
+//            if( 1 == gsm.call.CallStateChange )
+//            {
+//                gsm.call.CallStateChange = 0;
+//
+//            }
+
+#endif
             if( gsm.call.dtmfUpdate == 1 )
             {
                 gsm.call.dtmfUpdate = 0;
@@ -980,3 +1014,15 @@ bool gsm_ussd(char *command, char *answer, uint16_t sizeOfAnswer, uint8_t waitSe
 }
 //###############################################################################################################
 
+CallState_t gsm_call_state(void)
+{
+    if(1 == gsm.call.CallStateChange)
+    {
+        gsm.call.CallStateChange = 0;
+        return gsm.call.CallState;
+    }
+    else
+    {
+        return 10u;
+    }
+}

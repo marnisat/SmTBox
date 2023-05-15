@@ -69,6 +69,8 @@ RTC_HandleTypeDef hrtc;
 SPI_HandleTypeDef hspi1;
 SPI_HandleTypeDef hspi2;
 
+TIM_HandleTypeDef htim2;
+
 UART_HandleTypeDef huart1;
 
 osThreadId defaultTaskHandle;
@@ -85,6 +87,7 @@ static void MX_SPI2_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_RTC_Init(void);
 static void MX_USART1_UART_Init(void);
+static void MX_TIM2_Init(void);
 void StartDefaultTask(void const * argument);
 
 /* USER CODE BEGIN PFP */
@@ -159,6 +162,7 @@ int main(void)
   MX_USART3_UART_Init();
   MX_RTC_Init();
   MX_USART1_UART_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
   ILI9341_Init();
   MFRC522_Init();
@@ -184,7 +188,7 @@ int main(void)
 
   /* Create the thread(s) */
   /* definition and creation of defaultTask */
-  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 512);
+  osThreadDef(defaultTask, StartDefaultTask, osPriorityNormal, 0, 256);
   defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -395,6 +399,65 @@ static void MX_SPI2_Init(void)
   /* USER CODE BEGIN SPI2_Init 2 */
 
   /* USER CODE END SPI2_Init 2 */
+
+}
+
+/**
+  * @brief TIM2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM2_Init(void)
+{
+
+  /* USER CODE BEGIN TIM2_Init 0 */
+
+  /* USER CODE END TIM2_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM2_Init 1 */
+
+  /* USER CODE END TIM2_Init 1 */
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 0;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 65535;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_OC_Init(&htim2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_TIMING;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_OC_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM2_Init 2 */
+
+  /* USER CODE END TIM2_Init 2 */
+  HAL_TIM_MspPostInit(&htim2);
 
 }
 
@@ -624,6 +687,7 @@ void UpdateHookState(void)
 
 enum {ST_INIT=0,ST_WAITforNETWORK,ST_OFFHOOK_WAIT,ST_NUM_DIAL,ST_ONHOOK_WAIT,ST_COLLECT_NUM,ST_CARD_WAIT,ST_METERING}SysState;
 uint32_t CallDuration = 0;
+uint32_t SecCnt = 0;
 uint8_t CallSCharge = 0;
 uint8_t CallUnitPrice = 0;
 uint16_t CallPrice = 0;
@@ -673,7 +737,7 @@ void StartDefaultTask(void const * argument)
                 SysVariables.HookState = ON_HOOK;
                 ILI9341_WriteString(55, 92, "WAITING FOR NETWORK", Font_11x18, ILI9341_WHITE, ILI9341_BLACK);
                 SysState = ST_WAITforNETWORK;
-                SysState = ST_METERING;
+                /* SysState = ST_METERING; */
 
 #if 0
                 int32_t  CfgStatus;
@@ -811,13 +875,38 @@ void StartDefaultTask(void const * argument)
                     osMessagePut(GsmQueue,QueueBuffer,100);
                     SysState = ST_ONHOOK_WAIT;
                 }
+
+                if(gsm_call_state() == CL_ACTIVE)
+                {
+                    SysState = ST_METERING;
+                    SecCnt = HAL_GetTick();
+                    CallDuration = 1;
+                }
+
+                if(gsm_call_state() == CL_DISCONNECT)
+                {
+                    SysState = ST_CARD_WAIT;
+                }
+
                 break;
 
             case ST_METERING:
             {
-                CallDuration++;
+                if( ON_HOOK == SysVariables.HookState  )
+                {
+                    CallPrice = SysCfg.UnitPrice + SysCfg.SCharge;
+                    QueueBuffer[0] = 0x22;
+                    osMessagePut(GsmQueue,QueueBuffer,100);
+                    SysState = ST_ONHOOK_WAIT;
+                }
+
+                if((HAL_GetTick() - SecCnt) > 1000)
+                {
+                    SecCnt = HAL_GetTick();
+                    CallDuration++;
+                }
 //              sprintf(DispNumber,"%02s:%02s",(uint8_t)(CallDuration/600),(uint8_t)(CallDuration%600));
-                sprintf(DispNumber,"%02d:%02d",(uint8_t)(CallDuration/1000),(uint8_t)(CallDuration%1000));
+                sprintf(DispNumber,"%02d:%02d",(uint8_t)(CallDuration/60),(uint8_t)(CallDuration%60));
                 ILI9341_WriteString(55, 92, DispNumber, Font_16x26, ILI9341_WHITE,ILI9341_BLACK);
                 break;
             }

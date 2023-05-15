@@ -217,15 +217,19 @@ int8_t atc_command(atc_t *atc, const char *command, uint32_t timeout_ms, char *a
             atc_search(atc);
             char *found = atc_searchAnswer(atc, items, &foundIndex);
             if( found != NULL && answer != NULL )
+            {
                 strncpy(answer, found, answer_size);
-            //atc_empty(atc);
+            }
+            atc_empty(atc);
             if( found != NULL )
                 break;
         }
     }
-    atc_empty(atc);
+
     for( uint8_t i = 0; i < items; i++ )
+    {
         atc_free(atc->searchCmd[i]);
+    }
     atc_unlock(atc);
     return foundIndex;
 }
