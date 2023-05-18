@@ -166,10 +166,12 @@ void MFRC522_Init(void)
     MFRC522_Reset();
 
     /* Timer: TPrescaler*TreloadVal/6.78MHz = 24ms */
-    Write_MFRC522(TModeReg, 0x80); // 0x8D);        // Tauto=1; f(Timer) = 6.78MHz/TPreScaler
-    Write_MFRC522(TPrescalerReg, 0xA9); //0x34);    // TModeReg[3..0] + TPrescalerReg
-    Write_MFRC522(TReloadRegL, 0x03); //30);
-    Write_MFRC522(TReloadRegH, 0xE8); //0);
+    Write_MFRC522(TModeReg, 0x8D);          /* Tauto=1; f(Timer) = 6.78MHz/TPreScaler */
+    Write_MFRC522(TPrescalerReg, 0x34);     /* TModeReg[3..0] + TPrescalerReg */
+
+    Write_MFRC522(TReloadRegL, 30);
+    Write_MFRC522(TReloadRegH, 0);
+
     Write_MFRC522(TxAutoReg, 0x40);                 // force 100% ASK modulation
     Write_MFRC522(ModeReg, 0x3D);                   // CRC Initial value 0x6363
 
@@ -293,9 +295,10 @@ MIResult_t MFRC522_ToCard(uint8_t Cmd, uint8_t *SendData, uint8_t SendLen, uint8
     }
 
     // Waiting to receive data to complete
-    i = 2000;        // i according to the clock frequency adjustment, the operator M1 card maximum waiting time 25ms
+    i = 20; // i according to the clock frequency adjustment, the operator M1 card maximum waiting time 25ms
     do
     {
+        osDelay(1);
         // CommIrqReg[7..0]
         // Set1 TxIRq RxIRq IdleIRq HiAlerIRq LoAlertIRq ErrIRq TimerIRq
         n = Read_MFRC522(CommIrqReg);
@@ -312,7 +315,7 @@ MIResult_t MFRC522_ToCard(uint8_t Cmd, uint8_t *SendData, uint8_t SendLen, uint8
             Result = MI_OK;
             if( n & irqEn & 0x01 )
             {
-                Result = MI_NOTAGERR;             // ??
+                Result = MI_NOTAGERR;           //??
             }
 
             if(PCD_TRANSCEIVE == Cmd)
@@ -383,14 +386,13 @@ MIResult_t MFRC522_Anticoll(uint8_t *serNum)
     //ClearBitMask(CollReg,0x80);			//ValuesAfterColl
     Write_MFRC522(BitFramingReg, 0x00);		//TxLastBists = BitFramingReg[2..0]
 
-    serNum[0] = PICC_ANTICOLL;
+    serNum[0] = PICC_CMD_ANTICOLL;
     serNum[1] = 0x20;
     Result = MFRC522_ToCard(PCD_TRANSCEIVE, serNum, 2, serNum, &unLen);
 
     if( Result == MI_OK )
     {
         /* Check card serial number */
-
         serNumCheck ^= serNum[0];
         serNumCheck ^= serNum[1];
         serNumCheck ^= serNum[2];
@@ -425,7 +427,7 @@ MIResult_t MFRC522_Read(uint8_t blockAddr, uint8_t *recvData)
     MIResult_t Result = MI_ERR;
     uint32_t unLen;
 
-    recvData[0] = PICC_READ;
+    recvData[0] = PICC_CMD_READ;
     recvData[1] = blockAddr;
     CalulateCRC(recvData, 2, &recvData[2]);
     Result = MFRC522_ToCard(PCD_TRANSCEIVE, recvData, 4, recvData, &unLen);
@@ -450,7 +452,7 @@ MIResult_t MFRC522_Write(uint8_t blockAddr, uint8_t *writeData)
     uint8_t i;
     uint8_t buff[18];
 
-    buff[0] = PICC_WRITE;
+    buff[0] = PICC_CMD_WRITE;
     buff[1] = blockAddr;
     CalulateCRC(buff, 2, &buff[2]);
     Result = MFRC522_ToCard(PCD_TRANSCEIVE, buff, 4, buff, &recvBits);
@@ -575,7 +577,7 @@ uint8_t MFRC522_SelectTag(uint8_t *serNum)
 
     //ClearBitMask(Status2Reg, 0x08);			//MFCrypto1On=0
 
-    buffer[0] = PICC_SElECTTAG;
+    buffer[0] = PICC_CMD_SElECTTAG;
     buffer[1] = 0x70;
     buffer[2] = serNum[0];
     buffer[3] = serNum[1];
@@ -619,7 +621,7 @@ void MFRC522_Halt(void)
     uint32_t unLen;
     uint8_t buff[4];
 
-    buff[0] = PICC_HALT;
+    buff[0] = PICC_CMD_HALT;
     buff[1] = 0;
     CalulateCRC(buff, 2, &buff[2]);
 
@@ -629,6 +631,6 @@ void MFRC522_Halt(void)
 //--------------------------------------
 void MFRC522_StopCrypto1(void)
 {
-    // Clear MFCrypto1On bit
+    /* Clear MFCrypto1On bit */
     ClearBitMask(Status2Reg, 0x08); // Status2Reg[7..0] bits are: TempSensClear I2CForceHS reserved reserved   MFCrypto1On ModemState[2:0]
-} // End PCD_StopCrypto1()
+}/* End PCD_StopCrypto1() */

@@ -7,7 +7,9 @@
 
 #include "RFIDHandler.h"
 
-CustmerDetails_t CustmerDetails;
+SmartCard_t SmartCard;
+
+uint8_t PCDRxData[20] = {0};
 
 void ExtractBcdPhoneNumber(uint8_t *BcdNumber, uint8_t *DecimalNumber)
 {
@@ -32,79 +34,164 @@ const uint8_t Mx1[6][4]=
 
 const uint8_t SectorKeyA[] = {0xFFu,0xFFu,0xFFu,0xFFu,0xFFu,0xFFu};
 
-enum {INIT=0,IDLE,ANTICOLL,AUTH,EVER}RfIdState;
+
+
+static Sts_t CheckCardPresence(void)
+{
+    Sts_t Result = NO;
+    if(MI_OK == MFRC522_Request(PICC_CMD_REQA, PCDRxData))
+    {
+        Result = YES;
+    }
+    return Result;
+}
+
+static Sts_t  WakeupForNxt(void)
+{
+    Sts_t Result = NO;
+    if(MI_OK == MFRC522_Request(PICC_CMD_WUPA, PCDRxData))
+    {
+        Result = YES;
+    }
+    return Result;
+}
+
+enum {RFST_INIT=0,RFST_IDLE,RFST_HALT,RFST_READY,      RFST_ANTICOLL,RFST_AUTH,RFST_EVER}RfIdState;
 void UserTask1(void const *argument)
 {
-    uint8_t CardStr[20];
+/* uint8_t CardStr[20]; */
     uint8_t UID[4];
     uint8_t SectorKey[7];
     uint8_t Status = 0;
+    SmartCard.Found = NO;
     while (1)
     {
         vTaskDelay(10);
         Key_Scan();
 
-        switch(RfIdState)
+        switch( RfIdState )
         {
-            case INIT:
-                CustmerDetails.CardFound = NO;
-                RfIdState = IDLE;
+            case RFST_INIT:
+                RfIdState = RFST_IDLE;
                 break;
 
-            case IDLE:
-                Status = MFRC522_Request(PICC_REQIDL, CardStr);
-                if( MI_OK == Status )
-                {
-                    Status = MFRC522_Anticoll(CardStr);
-                    if( MI_OK == Status )
-                    {
-                        CustmerDetails.Uid = (uint8_t) CardStr[0];
-                        CustmerDetails.Uid = CustmerDetails.Uid << 8;
-                        CustmerDetails.Uid |= (uint8_t) CardStr[1];
-                        CustmerDetails.Uid = CustmerDetails.Uid << 8;
-                        CustmerDetails.Uid |= (uint8_t) CardStr[2];
-                        CustmerDetails.Uid = CustmerDetails.Uid << 8;
-                        CustmerDetails.Uid |= (uint8_t) CardStr[3];
+            case RFST_IDLE:
 
-                        Status = MFRC522_SelectTag(CardStr);
+                if( CheckCardPresence() == YES )
+                {
+                    if( MI_OK == MFRC522_Anticoll(PCDRxData) )
+                    {
+                        memcpy(SmartCard.Uid, PCDRxData, 4);
+                        Status = MFRC522_SelectTag(PCDRxData);
                         if( Status > 0 )
                         {
-                            RfIdState = AUTH;
+                            if( MI_OK == MFRC522_Auth(0x60, 7, SectorKeyA, PCDRxData) )
+                            {
+                                Status = MFRC522_Read(4u, &PCDRxData);
+                                if( MI_OK == Status )
+                                {
+                                    strncpy(SmartCard.Name, PCDRxData, 12u);
+                                    SmartCard.Balance = *((uint16_t*) &PCDRxData[12]);
+                                }
+                                Status = MFRC522_Read(5u, &PCDRxData);
+                                if( MI_OK == Status )
+                                {
+                                    ExtractBcdPhoneNumber(&PCDRxData[0], SmartCard.Number1);
+                                    ExtractBcdPhoneNumber(&PCDRxData[5], SmartCard.Number2);
+                                    ExtractBcdPhoneNumber(&PCDRxData[10], SmartCard.Number3);
+                                }
+                                Status = MFRC522_Read(6u, &PCDRxData);
+                                if( MI_OK == Status )
+                                {
+                                    SmartCard.AcceptenceId = *((uint32_t*) &PCDRxData[0]);
+                                    SmartCard.AcceptenceMask = *((uint32_t*) &PCDRxData[4]);
+                                    SmartCard.Found = YES;
+                                    RfIdState = RFST_HALT;
+                                }
+                                MFRC522_Halt();
+                                MFRC522_StopCrypto1();
+                                SmartCard.Found = YES;
+                            }
                         }
                     }
                 }
                 break;
-            case AUTH:
 
-                Status = MFRC522_Auth(0x60, 7, SectorKeyA, CardStr);
-                if (Status == MI_OK)
+            case RFST_HALT:
+                if(YES == WakeupForNxt())
                 {
-                    Status = MFRC522_Read(4u, &CardStr);
-                    if(MI_OK == Status)
-                    {
-                        strncpy(CustmerDetails.Name,CardStr,12u);
-                        CustmerDetails.Balance = *((uint16_t*)&CardStr[13]);
-                    }
-                    Status = MFRC522_Read(5u, &CardStr);
-                    if(MI_OK == Status)
-                    {
-                        ExtractBcdPhoneNumber(&CardStr[0],CustmerDetails.Number1);
-                        ExtractBcdPhoneNumber(&CardStr[5],CustmerDetails.Number2);
-                        ExtractBcdPhoneNumber(&CardStr[10],CustmerDetails.Number3);
-                    }
-                    Status = MFRC522_Read(6u, &CardStr);
-                    if(MI_OK == Status)
-                    {
-                        CustmerDetails.AcceptenceId   = *((uint32_t*)&CardStr[0]);
-                        CustmerDetails.AcceptenceMask = *((uint32_t*)&CardStr[4]);
-                        CustmerDetails.CardFound = YES;
-                    }
+                    RfIdState = RFST_READY;
                 }
-                RfIdState = EVER;
-                break;
-            case EVER:
                 break;
 
+            case RFST_READY:
+
+                if(MI_OK != MFRC522_Anticoll(PCDRxData))
+//              if( CheckCardPresence() == NO )
+                {
+                    SmartCard.Found = NO;
+                    RfIdState = RFST_INIT;
+                }
+                break;
+            default:
+                break;
+
+
+
+
+
+//                Status = MFRC522_Request(PICC_REQIDL, CardStr);
+//                if( MI_OK == Status )
+//                {
+//                    Status = MFRC522_Anticoll(CardStr);
+//                    if( MI_OK == Status )
+//                    {
+//                        CustmerDetails.Uid = (uint8_t) CardStr[0];
+//                        CustmerDetails.Uid = CustmerDetails.Uid << 8;
+//                        CustmerDetails.Uid |= (uint8_t) CardStr[1];
+//                        CustmerDetails.Uid = CustmerDetails.Uid << 8;
+//                        CustmerDetails.Uid |= (uint8_t) CardStr[2];
+//                        CustmerDetails.Uid = CustmerDetails.Uid << 8;
+//                        CustmerDetails.Uid |= (uint8_t) CardStr[3];
+//
+//                        Status = MFRC522_SelectTag(CardStr);
+//                        if( Status > 0 )
+//                        {
+//                            RfIdState = RFST_AUTH;
+//                        }
+//                    }
+//                }
+//                break;
+//            case RFST_AUTH:
+//
+//                Status = MFRC522_Auth(0x60, 7, SectorKeyA, CardStr);
+//                if (Status == MI_OK)
+//                {
+//                    Status = MFRC522_Read(4u, &CardStr);
+//                    if(MI_OK == Status)
+//                    {
+//                        strncpy(CustmerDetails.Name,CardStr,12u);
+//                        CustmerDetails.Balance = *((uint16_t*)&CardStr[13]);
+//                    }
+//                    Status = MFRC522_Read(5u, &CardStr);
+//                    if(MI_OK == Status)
+//                    {
+//                        ExtractBcdPhoneNumber(&CardStr[0],CustmerDetails.Number1);
+//                        ExtractBcdPhoneNumber(&CardStr[5],CustmerDetails.Number2);
+//                        ExtractBcdPhoneNumber(&CardStr[10],CustmerDetails.Number3);
+//                    }
+//                    Status = MFRC522_Read(6u, &CardStr);
+//                    if(MI_OK == Status)
+//                    {
+//                        CustmerDetails.AcceptenceId   = *((uint32_t*)&CardStr[0]);
+//                        CustmerDetails.AcceptenceMask = *((uint32_t*)&CardStr[4]);
+//                        CustmerDetails.CardFound = YES;
+//                    }
+//                }
+//                RfIdState = RFST_EVER;
+//                break;
+//            case RFST_EVER:
+//                break;
         }
     }
 }

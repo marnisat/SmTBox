@@ -14,8 +14,9 @@
 
 typedef struct
 {
-    int32_t CardFound;
-    uint32_t Uid;
+    Sts_t Found;
+    uint8_t Uid[10];
+
     uint8_t Name[12];
     uint16_t Balance;
     uint8_t Resrv1[2];
@@ -25,9 +26,9 @@ typedef struct
     uint8_t Resrv2;
     uint32_t AcceptenceId;
     uint32_t AcceptenceMask;
-}CustmerDetails_t;
+}SmartCard_t;
 
-extern CustmerDetails_t CustmerDetails;
+extern SmartCard_t SmartCard;
 
 
 #endif /* INC_RFIDHANDLER_H_ */

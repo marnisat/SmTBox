@@ -25,25 +25,23 @@ extern SPI_HandleTypeDef MFRC522_SPI_PORT;
 #define PCD_CALCCRC           0x03               //CRC Calculate
 
 // Mifare_One card command word
-# define PICC_REQIDL          0x26               // find the antenna area does not enter hibernation
-# define PICC_REQALL          0x52               // find all the cards antenna area
-# define PICC_ANTICOLL        0x93               // anti-collision
-
-# define PICC_SElECTTAG       0x93               /* Select Cascade Level 1 */
+# define PICC_CMD_REQA          (0x26u)               // find the antenna area does not enter hibernation
+# define PICC_CMD_WUPA          (0x52u)     /* Command WakeUP */               // find all the cards antenna area
+# define PICC_CMD_ANTICOLL      (0x93u) /* anti-collision */
+# define PICC_CMD_SElECTTAG     (0x93u) /* Select Cascade Level 1 */
 #if 0
 # define PICC_SElECTTAG       0x95               /* Select Cascade Level 2 */
 # define PICC_SElECTTAG       0x97               /* Select Cascade Level 3 */
 #endif
-
-# define PICC_AUTHENT1A       0x60               // authentication key A
-# define PICC_AUTHENT1B       0x61               // authentication key B
-# define PICC_READ            0x30               // Read Block
-# define PICC_WRITE           0xA0               // write block
-# define PICC_DECREMENT       0xC0               // debit
-# define PICC_INCREMENT       0xC1               // recharge
-# define PICC_RESTORE         0xC2               // transfer block data to the buffer
-# define PICC_TRANSFER        0xB0               // save the data in the buffer
-# define PICC_HALT            0x50               // Sleep
+# define PICC_CMD_AUTHENT1A     (0x60u) /* authentication key A */
+# define PICC_CMD_AUTHENT1B     (0x61u) /* authentication key B */
+# define PICC_CMD_READ          (0x30u) /* Read Block */
+# define PICC_CMD_WRITE         (0xA0u) /* write block */
+# define PICC_CMD_DECREMENT     (0xC0u) /* debit */
+# define PICC_CMD_INCREMENT     (0xC1u) /* recharge */
+# define PICC_CMD_RESTORE       (0xC2u) /* transfer block data to the buffer */
+# define PICC_CMD_TRANSFER      (0xB0u) /* save the data in the buffer */
+# define PICC_CMD_HALT          (0x50u) /* Sleep */
 
 
 /* And MF522 The error code is returned when communication */

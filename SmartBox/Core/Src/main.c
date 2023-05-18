@@ -718,7 +718,6 @@ void StartDefaultTask(void const * argument)
 /* Infinite loop */
     for( ;; )
     {
-/*        osDelay(1); */
         vTaskDelay(10);
         UpdateHookState();
         switch( SysState )
@@ -763,7 +762,7 @@ void StartDefaultTask(void const * argument)
             case ST_WAITforNETWORK:
                 if(1 == gsm_registered())
                 {
-                    if(NO == CustmerDetails.CardFound)
+                    if(NO == SmartCard.Found)
                     {
                         ILI9341_WriteString(55, 92, "INSERT CARD           ", Font_11x18, ILI9341_WHITE, ILI9341_BLACK);
                     }
@@ -771,10 +770,10 @@ void StartDefaultTask(void const * argument)
                 }
                 break;
             case ST_OFFHOOK_WAIT:
-                if( SysVariables.HookState == OFF_HOOK )
+                if( (SysVariables.HookState == OFF_HOOK) && (YES == SmartCard.Found) )
                 {
                     QueueBuffer[0] = 0x33;
-                    osMessagePut(GsmQueue,QueueBuffer,100);
+                    osMessagePut(GsmQueue, QueueBuffer, 100);
                     fDialToneOn = true;
                     Key_Init();
                     SysState = ST_CARD_WAIT;
@@ -782,19 +781,19 @@ void StartDefaultTask(void const * argument)
                 break;
 
             case ST_CARD_WAIT:
-                if( YES == CustmerDetails.CardFound )
+                if( YES == SmartCard.Found )
                 {
                     if( 1 == SysCfg.Mode )
                     {
-                        IntBuffToString(DispNumber, CustmerDetails.Number1, 10);
+                        IntBuffToString(DispNumber, SmartCard.Number1, 10);
                         ILI9341_WriteString(80, 80, DispNumber, Font_16x26, ILI9341_WHITE, ILI9341_BLACK);
-                        IntBuffToString(DispNumber, CustmerDetails.Number2, 10);
+                        IntBuffToString(DispNumber, SmartCard.Number2, 10);
                         ILI9341_WriteString(80, 120, DispNumber, Font_16x26, ILI9341_COLOR565(192, 192, 192),
                                 ILI9341_BLACK);
-                        IntBuffToString(DispNumber, CustmerDetails.Number3, 10);
+                        IntBuffToString(DispNumber, SmartCard.Number3, 10);
                         ILI9341_WriteString(80, 160, DispNumber, Font_16x26, ILI9341_COLOR565(192, 192, 192),
                                 ILI9341_BLACK);
-                        IntBuffToString(DispNumber, CustmerDetails.Number1, 10);
+                        IntBuffToString(DispNumber, SmartCard.Number1, 10);
                         ILI9341_WriteString(80, 200, DispNumber, Font_16x26, ILI9341_COLOR565(192, 192, 192),
                                 ILI9341_BLACK);
                     }
@@ -806,7 +805,7 @@ void StartDefaultTask(void const * argument)
                     DialedCnt = 0;
                 }
 
-                if( ON_HOOK == SysVariables.HookState  )
+                if(( ON_HOOK == SysVariables.HookState  ) || (NO == SmartCard.Found))
                 {
                     SysState = ST_ONHOOK_WAIT;
                 }
@@ -860,7 +859,7 @@ void StartDefaultTask(void const * argument)
                         SysState = ST_NUM_DIAL;
                     }
 
-                    if( ON_HOOK == SysVariables.HookState  )
+                    if( ( ON_HOOK == SysVariables.HookState) || (NO == SmartCard.Found) )
                     {
                         SysState = ST_ONHOOK_WAIT;
                     }
@@ -868,7 +867,7 @@ void StartDefaultTask(void const * argument)
                 break;
             case ST_NUM_DIAL:
 
-                if( ON_HOOK == SysVariables.HookState  )
+                if(( ON_HOOK == SysVariables.HookState  ) || (NO == SmartCard.Found) )
                 {
                     CallPrice = SysCfg.UnitPrice + SysCfg.SCharge;
                     QueueBuffer[0] = 0x22;
@@ -892,7 +891,7 @@ void StartDefaultTask(void const * argument)
 
             case ST_METERING:
             {
-                if( ON_HOOK == SysVariables.HookState  )
+                if(( ON_HOOK == SysVariables.HookState  ) || (NO == SmartCard.Found) )
                 {
                     CallPrice = SysCfg.UnitPrice + SysCfg.SCharge;
                     QueueBuffer[0] = 0x22;
